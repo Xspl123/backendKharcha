@@ -24,7 +24,7 @@ return new class extends Migration
                 'other'
             ])->default('bank_transfer');
 
-            $table->string('reference_no')->nullable();  // UTR / cheque no
+            $table->string('reference_no')->nullable(); 
             $table->text('notes')->nullable();
 
             $table->timestamps();

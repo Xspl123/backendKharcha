@@ -13,30 +13,30 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('product_id')->constrained()->cascadeOnDelete();
 
-            // Movement Type
+            
             $table->enum('type', [
-                'opening',       // Opening stock entry
-                'purchase_in',   // Stock in from Purchase Order
-                'sale_out',      // Stock out from Invoice/Sale
-                'manual_in',     // Manual stock addition
-                'manual_out',    // Manual stock removal
-                'adjustment',    // Stock adjustment/correction
-                'return_in',     // Purchase return received
-                'return_out',    // Sale return given
+                'opening',       
+                'purchase_in',   
+                'sale_out',      
+                'manual_in',    
+                'manual_out',    
+                'adjustment',    
+                'return_in',   
+                'return_out',    
             ]);
 
-            $table->decimal('qty', 10, 2);           // +ve = in, -ve = out
-            $table->decimal('rate', 12, 2)->default(0);  // Rate at which movement happened
-            $table->decimal('value', 12, 2)->default(0); // qty * rate
+            $table->decimal('qty', 10, 2);          
+            $table->decimal('rate', 12, 2)->default(0); 
+            $table->decimal('value', 12, 2)->default(0); 
 
             // Stock before & after
             $table->decimal('stock_before', 10, 2)->default(0);
             $table->decimal('stock_after', 10, 2)->default(0);
 
             // Reference
-            $table->string('reference_type')->nullable();  // purchase_order, invoice etc
+            $table->string('reference_type')->nullable();  
             $table->unsignedBigInteger('reference_id')->nullable();
-            $table->string('reference_no')->nullable();    // PO number / Invoice number
+            $table->string('reference_no')->nullable();   
             $table->text('notes')->nullable();
 
             $table->date('movement_date');
