@@ -22,6 +22,7 @@ class StorePurchaseOrderRequest extends FormRequest
 
             'items'                  => 'required|array|min:1',
             'items.*.item_name'      => 'required|string|max:255',
+            'items.*.product_id'     => 'nullable|exists:products,id',
             'items.*.description'    => 'nullable|string',
             'items.*.hsn_code'       => 'nullable|string|max:255',
             'items.*.qty'            => 'required|numeric|min:0.01',

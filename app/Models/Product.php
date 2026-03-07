@@ -28,6 +28,7 @@ class Product extends Model
         'status',
         'notes',
     ];
+    
 
     protected $attributes = [
         'unit'            => 'pcs',
@@ -52,6 +53,18 @@ class Product extends Model
     ];
 
     // ── Relationships ─────────────────────────────────────
+
+     protected $appends = ['is_low_stock', 'is_out_of_stock'];
+     
+    public function getIsLowStockAttribute(): bool
+    {
+        return $this->current_stock > 0 && $this->current_stock <= $this->low_stock_alert;
+    }
+
+    public function getIsOutOfStockAttribute(): bool
+    {
+        return $this->current_stock <= 0;
+    }
 
     public function user()
     {

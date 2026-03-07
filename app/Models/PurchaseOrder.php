@@ -14,6 +14,7 @@ class PurchaseOrder extends Model
         'user_id',
         'vendor_id',
         'po_number',
+        'product_id',
         'po_date',
         'expected_delivery_date',
         'received_date',

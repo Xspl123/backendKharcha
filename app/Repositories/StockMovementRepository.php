@@ -70,6 +70,7 @@ class StockMovementRepository implements StockMovementRepositoryInterface
     }
 
     // ── Create (Manual Movement) ───────────────────────────
+    // FIXED: Array syntax instead of named parameters
 
     public function create(array $data): mixed
     {
@@ -87,15 +88,16 @@ class StockMovementRepository implements StockMovementRepositoryInterface
                 );
             }
 
-            $movement = $this->stockService->addMovement(
-                product:   $product,
-                type:      $data['type'],
-                qty:       (float) $data['qty'],
-                rate:      (float) ($data['rate'] ?? $product->avg_cost),
-                reference: [],
-                notes:     $data['notes'] ?? '',
-                date:      $data['movement_date'] ?? now()->toDateString(),
-            );
+            // FIXED: Use array instead of named parameters
+            $movement = $this->stockService->addMovement([
+                'product'   => $product,
+                'type'      => $data['type'],
+                'qty'       => (float) $data['qty'],
+                'rate'      => (float) ($data['rate'] ?? $product->avg_cost),
+                'reference' => [],
+                'notes'     => $data['notes'] ?? '',
+                'date'      => $data['movement_date'] ?? now()->toDateString(),
+            ]);
 
             return $movement->load('product:id,name,sku,unit');
         });

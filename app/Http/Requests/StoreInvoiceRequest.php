@@ -16,6 +16,7 @@ class StoreInvoiceRequest extends FormRequest
         return [
             'company_id' => 'required|exists:companies,id',
             'client_id' => 'required|exists:clients,id',
+
             'invoice_date' => 'required|date',
             'due_date' => 'nullable|date|after_or_equal:invoice_date',
             'cgst' => 'nullable|numeric|min:0',
@@ -28,6 +29,7 @@ class StoreInvoiceRequest extends FormRequest
             'is_reverse_charge'         => 'nullable|boolean',
             'items' => 'required|array|min:1',
             'items.*.item_name' => 'required|string|max:255',
+            'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.description' => 'nullable|string',
             'items.*.hsn_code' => 'nullable|string|max:255',
             'items.*.qty' => 'required|numeric|min:0.01',
@@ -55,6 +57,7 @@ class StoreInvoiceRequest extends FormRequest
             'place_of_supply.size'          => 'Place of supply must be 2-digit state code e.g. 27',
             'items.required' => 'At least one item is required',
             'items.*.item_name.required' => 'Item name is required',
+            'items.*.product_id.exists' => 'Selected product does not exist',
             'items.*.qty.required' => 'Quantity is required',
             'items.*.qty.min' => 'Quantity must be at least 0.01',
             'items.*.rate.required' => 'Rate is required',

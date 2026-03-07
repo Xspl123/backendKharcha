@@ -44,6 +44,11 @@ class PurchaseOrderItem extends Model
         return $this->belongsTo(PurchaseOrder::class);
     }
 
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
+
     // ── Helpers ────────────────────────────────────────────
 
     public function calculateAmounts(): void
