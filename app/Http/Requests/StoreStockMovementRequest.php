@@ -13,6 +13,7 @@ class StoreStockMovementRequest extends FormRequest
         return [
             'product_id'    => 'required|exists:products,id',
             'type'          => 'required|in:manual_in,manual_out,adjustment',
+            'direction'     => 'required_if:type,adjustment|in:in,out',
             'qty'           => 'required|numeric|min:0.01',
             'rate'          => 'nullable|numeric|min:0',
             'notes'         => 'nullable|string',

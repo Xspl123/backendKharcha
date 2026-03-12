@@ -21,6 +21,9 @@ class PurchaseOrderItem extends Model
         'tax_rate',
         'tax_amount',
         'product_id',
+        'category_id',
+        'return_qty',
+        'is_returned',
     ];
 
     protected $casts = [

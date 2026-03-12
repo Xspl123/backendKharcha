@@ -35,6 +35,10 @@ use App\Repositories\Interfaces\StockMovementRepositoryInterface;
 use App\Repositories\ProductCategoryRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\StockMovementRepository;
+use App\Repositories\Interfaces\SalesReturnRepositoryInterface;
+use App\Repositories\SalesReturnRepository;
+use App\Repositories\Interfaces\PurchaseReturnRepositoryInterface;
+use App\Repositories\PurchaseReturnRepository;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -60,6 +64,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ProductRepositoryInterface::class,ProductRepository::class);
         $this->app->bind(StockMovementRepositoryInterface::class,StockMovementRepository::class);
         $this->app->singleton(\App\Services\StockService::class);
+        $this->app->bind(SalesReturnRepositoryInterface::class, SalesReturnRepository::class);
+        $this->app->bind(PurchaseReturnRepositoryInterface::class, PurchaseReturnRepository::class);
+
         
     }
 

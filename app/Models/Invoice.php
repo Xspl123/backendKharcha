@@ -40,6 +40,8 @@ class Invoice extends Model
         'supply_type',
         'place_of_supply',
         'is_reverse_charge',
+        'original_invoice_id',
+        'is_return',
     ];
 
     protected $casts = [
@@ -64,6 +66,18 @@ class Invoice extends Model
     {
         return $this->belongsTo(Client::class);
     }
+    // ✅ Relationship for Return Invoices (Self-referential)
+    public function originalInvoice()
+    {
+        return $this->belongsTo(Invoice::class, 'original_invoice_id');
+    }
+
+    // ✅ Relationship for Returned Invoices (Child returns)
+    public function returnInvoices()
+    {
+        return $this->hasMany(Invoice::class, 'original_invoice_id');
+    }
+
     public function company()
     {
         return $this->belongsTo(Company::class);

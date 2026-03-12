@@ -12,119 +12,95 @@ use Illuminate\Support\Str;
 class StockService
 {
     // ══════════════════════════════════════════════════════
-    // ADD MOVEMENT - Generic method for all stock movements
+    // ADD MOVEMENT — Generic method
+    // StockMovementRepository yahan call karta hai
     // ══════════════════════════════════════════════════════
-    
-    /**
-     * Add a stock movement (generic method)
-     */
+
     public static function addMovement(array $data): StockMovement
-{
-    // Validate required fields - More flexible validation
-    if (!isset($data['product']) && !isset($data['product_id'])) {
-        throw new \Exception("Either product or product_id is required");
+    {
+        // ✅ Product resolve — object ya product_id dono accept karo
+        // StockMovementRepository 'product' => $obj pass karta hai
+        // SalesReturnRepository    'product_id' => int pass karta hai
+        $product   = null;
+        $productId = null;
+
+        if (!empty($data['product']) && $data['product'] instanceof Product) {
+            $product   = $data['product'];
+            $productId = $product->id;
+        } elseif (!empty($data['product_id'])) {
+            $productId = (int) $data['product_id'];
+            $product   = Product::find($productId);
+        }
+
+        if (!$product || !$productId) {
+            throw new \Exception('Valid product or product_id required for stock movement');
+        }
+
+        $type = $data['type'] ?? null;
+        if (!$type) {
+            throw new \Exception('Movement type required');
+        }
+
+        $qty  = (float) ($data['qty']  ?? 0);
+        $rate = (float) ($data['rate'] ?? $product->avg_cost ?? 0);
+
+        // ✅ stock_before — caller ne diya toh use karo, warna current stock
+        $stockBefore = isset($data['stock_before'])
+            ? (float) $data['stock_before']
+            : (float) $product->current_stock;
+
+        // ✅ stock_after — caller ne diya toh use karo, warna calculate karo
+        if (isset($data['stock_after'])) {
+            $stockAfter = (float) $data['stock_after'];
+        } else {
+            $inTypes  = ['purchase_in', 'return_in', 'opening', 'adjustment_plus', 'manual_in'];
+            $outTypes = ['sale_out', 'adjustment_minus', 'manual_out', 'return_out'];
+
+            if (in_array($type, $inTypes)) {
+                $stockAfter = $stockBefore + $qty;
+            } elseif (in_array($type, $outTypes)) {
+                $stockAfter = max(0, $stockBefore - $qty);
+            } else {
+                $stockAfter = $stockBefore + $qty; // default +
+            }
+        }
+
+        $value = (float) ($data['value'] ?? round($qty * $rate, 2));
+
+        // ✅ reference — 'reference' array ya flat keys dono support
+        $ref = $data['reference'] ?? [];
+        $referenceType = $data['reference_type'] ?? $ref['type'] ?? null;
+        $referenceId   = $data['reference_id']   ?? $ref['id']   ?? null;
+        $referenceNo   = $data['reference_no']   ?? $ref['no']   ?? null;
+
+        // ✅ movement_date — 'date' alias bhi accept karo (StockMovementRepository 'date' pass karta hai)
+        $movementDate = $data['movement_date']
+            ?? $data['date']
+            ?? now()->toDateString();
+
+        $userId = $data['user_id'] ?? auth()->id() ?? $product->user_id;
+
+        $movement = StockMovement::create([
+            'user_id'        => $userId,
+            'product_id'     => $productId,
+            'type'           => $type,
+            'qty'            => $qty,
+            'rate'           => $rate,
+            'value'          => $value,
+            'stock_before'   => $stockBefore,
+            'stock_after'    => $stockAfter,
+            'reference_type' => $referenceType,
+            'reference_id'   => $referenceId,
+            'reference_no'   => $referenceNo,
+            'notes'          => $data['notes'] ?? '',
+            'movement_date'  => $movementDate,
+        ]);
+
+        // ✅ Product current_stock update — stock_after se
+        $product->update(['current_stock' => $stockAfter]);
+
+        return $movement;
     }
-    
-    if (!isset($data['type'])) {
-        throw new \Exception("Movement type is required");
-    }
-    
-    if (!isset($data['qty'])) {
-        throw new \Exception("Quantity is required");
-    }
-    
-    // Get product - handle both product object and product_id
-    $product = null;
-    $productId = null;
-    
-    if (isset($data['product']) && $data['product'] instanceof Product) {
-        $product = $data['product'];
-        $productId = $product->id;
-    } elseif (isset($data['product_id'])) {
-        $productId = $data['product_id'];
-        $product = Product::find($productId);
-    }
-    
-    if (!$product) {
-        throw new \Exception("Product not found");
-    }
-    
-    // Get rate - handle different possible keys
-    $rate = $data['rate'] ?? 
-            $data['price'] ?? 
-            ($data['product'] ? $data['product']->avg_cost : 0) ?? 
-            0;
-    
-    // Calculate stock before/after
-    $stockBefore = (float) ($data['stock_before'] ?? $product->current_stock);
-    $qty = (float) $data['qty'];
-    $stockAfter = $stockBefore;
-    
-    switch ($data['type']) {
-        case 'purchase_in':
-        case 'return_in':
-        case 'opening':
-        case 'adjustment_plus':
-            $stockAfter = $stockBefore + $qty;
-            break;
-            
-        case 'sale_out':
-        case 'adjustment_minus':
-            $stockAfter = max(0, $stockBefore - $qty);
-            break;
-    }
-    
-    // Calculate value
-    $value = $data['value'] ?? round($qty * (float) $rate, 2);
-    
-    // Handle reference data - could be array or separate fields
-    $referenceType = null;
-    $referenceId = null;
-    $referenceNo = null;
-    
-    if (isset($data['reference']) && is_array($data['reference'])) {
-        $referenceType = $data['reference']['type'] ?? null;
-        $referenceId = $data['reference']['id'] ?? null;
-        $referenceNo = $data['reference']['no'] ?? null;
-    } else {
-        $referenceType = $data['reference_type'] ?? null;
-        $referenceId = $data['reference_id'] ?? null;
-        $referenceNo = $data['reference_no'] ?? null;
-    }
-    
-    // Get user_id
-    $userId = $data['user_id'] ?? auth()->id() ?? $product->user_id;
-    
-    // Get notes
-    $notes = $data['notes'] ?? '';
-    
-    // Get movement date
-    $movementDate = $data['movement_date'] ?? $data['date'] ?? now()->toDateString();
-    
-    // Create stock movement
-    $movement = StockMovement::create([
-        'user_id'        => $userId,
-        'product_id'     => $productId,
-        'type'           => $data['type'],
-        'qty'            => $qty,
-        'rate'           => (float) $rate,
-        'value'          => $value,
-        'stock_before'   => $stockBefore,
-        'stock_after'    => $stockAfter,
-        'reference_type' => $referenceType,
-        'reference_id'   => $referenceId,
-        'reference_no'   => $referenceNo,
-        'notes'          => $notes,
-        'movement_date'  => $movementDate,
-    ]);
-    
-    // Update product stock
-    $product->update([
-        'current_stock' => $stockAfter
-    ]);
-    
-    return $movement;
-}
 
     // ══════════════════════════════════════════════════════
     // INVOICE — Sale Out
@@ -145,8 +121,7 @@ class StockService
             $stockBefore = (float) $product->current_stock;
             $stockAfter  = max(0, $stockBefore - $qty);
 
-            // Use addMovement instead of direct create
-            self::addMovement([
+            StockMovement::create([
                 'user_id'        => $userId,
                 'product_id'     => $productId,
                 'type'           => 'sale_out',
@@ -161,6 +136,8 @@ class StockService
                 'notes'          => "Invoice #{$invoiceNo} — Sale",
                 'movement_date'  => now()->toDateString(),
             ]);
+
+            $product->update(['current_stock' => $stockAfter]);
         }
     }
 
@@ -178,8 +155,7 @@ class StockService
             $stockBefore = (float) $product->current_stock;
             $stockAfter  = $stockBefore + (float) $movement->qty;
 
-            // Use addMovement
-            self::addMovement([
+            StockMovement::create([
                 'user_id'        => $userId,
                 'product_id'     => $movement->product_id,
                 'type'           => 'return_in',
@@ -194,6 +170,8 @@ class StockService
                 'notes'          => "Invoice #{$invoiceNo} — Sale Reversed",
                 'movement_date'  => now()->toDateString(),
             ]);
+
+            $product->update(['current_stock' => $stockAfter]);
         }
 
         StockMovement::where('reference_type', 'invoice')
@@ -229,10 +207,8 @@ class StockService
                     // ── Auto Product Create ───────────────────
                     $product = $this->autoCreateProduct($item, $po);
 
-                    // PO item mein product_id save karo (future reference) - FIXED: array syntax
-                    $item->update([
-                        'product_id' => $product->id
-                    ]);
+                    // PO item mein product_id save karo (future reference)
+                    $item->update(['product_id' => $product->id]);
                 }
 
                 // ── Step 2: Stock Movement ────────────────────
@@ -247,8 +223,7 @@ class StockService
                     ? round(($oldValue + $newValue) / $totalQty, 2)
                     : (float) $item->rate;
 
-                // Use addMovement instead of direct create
-                self::addMovement([
+                StockMovement::create([
                     'user_id'        => auth()->id(),
                     'product_id'     => $product->id,
                     'type'           => 'purchase_in',
@@ -266,7 +241,6 @@ class StockService
                 ]);
 
                 // ── Step 3: Product stock + avg_cost update ───
-                // FIXED: array syntax, not named parameters
                 $product->update([
                     'current_stock' => $stockAfter,
                     'avg_cost'      => $newAvgCost,
@@ -285,7 +259,7 @@ class StockService
     public function setOpeningStock(
         Product $product,
         float   $newOpeningStock,
-        float   $purchasePrice = 0.0
+        float   $purchasePrice = 0.0   // ← 3rd param (optional, default 0)
     ): void {
         $oldOpeningStock = (float) $product->opening_stock;
         $diff            = $newOpeningStock - $oldOpeningStock;
@@ -300,8 +274,7 @@ class StockService
             $stockBefore = (float) $product->current_stock;
             $stockAfter  = max(0, $stockBefore + $diff);
 
-            // Use addMovement
-            self::addMovement([
+            StockMovement::create([
                 'user_id'        => auth()->id() ?? $product->user_id,
                 'product_id'     => $product->id,
                 'type'           => 'opening',
@@ -317,10 +290,10 @@ class StockService
                 'movement_date'  => now()->toDateString(),
             ]);
 
-            // FIXED: array syntax, not named parameters
             $product->update([
                 'opening_stock' => $newOpeningStock,
                 'current_stock' => $stockAfter,
+                // avg_cost bhi update karo agar rate mila
                 'avg_cost'      => $rate > 0 ? $rate : $product->avg_cost,
             ]);
         });
@@ -386,6 +359,7 @@ class StockService
         }
 
         // Selling price = purchase price * 1.2 (20% margin default)
+        // User baad mein edit kar sakta hai
         $purchasePrice = (float) $item->rate;
         $sellingPrice  = round($purchasePrice * 1.20, 2);
 
@@ -393,6 +367,7 @@ class StockService
             'user_id'        => $userId,
             'name'           => $item->item_name,
             'sku'            => $sku,
+            'product_category_id'    => $item->category_id ?? null,
             'hsn_code'       => $item->hsn_code  ?? null,
             'unit'           => $item->unit       ?? 'pcs',
             'purchase_price' => $purchasePrice,

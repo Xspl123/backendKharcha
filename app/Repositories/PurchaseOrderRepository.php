@@ -110,6 +110,7 @@ class PurchaseOrderRepository implements PurchaseOrderRepositoryInterface
                     'tax_rate'    => (float) ($itemData['tax_rate'] ?? 0),
                     'tax_amount'  => $taxAmt,
                     'product_id'  => $itemData['product_id']  ?? null,
+                    'category_id' => $itemData['category_id'] ?? null,
                 ]);
             }
 
@@ -167,6 +168,7 @@ class PurchaseOrderRepository implements PurchaseOrderRepositoryInterface
                         'tax_rate'    => (float) ($itemData['tax_rate'] ?? 0),
                         'tax_amount'  => $taxAmt,
                         'product_id'  => $itemData['product_id']  ?? null,
+                        'category_id' => $itemData['category_id'] ?? null,
                     ]);
                 }
 

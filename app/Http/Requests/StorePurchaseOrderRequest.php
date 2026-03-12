@@ -23,13 +23,13 @@ class StorePurchaseOrderRequest extends FormRequest
             'items'                  => 'required|array|min:1',
             'items.*.item_name'      => 'required|string|max:255',
             'items.*.product_id'     => 'nullable|exists:products,id',
+            'items.*.category_id'    => 'nullable|exists:product_categories,id',  // ✅ ADD
             'items.*.description'    => 'nullable|string',
             'items.*.hsn_code'       => 'nullable|string|max:255',
             'items.*.qty'            => 'required|numeric|min:0.01',
             'items.*.unit'           => 'nullable|string|max:50',
             'items.*.rate'           => 'required|numeric|min:0',
             'items.*.tax_rate'       => 'nullable|numeric|min:0|max:100',
-            'items.*.product_id'     => 'nullable|integer',
         ];
     }
 

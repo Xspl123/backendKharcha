@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\VendorPaymentController;
 use App\Http\Controllers\Api\ProductCategoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\StockMovementController;
+use App\Http\Controllers\Api\PurchaseReturnController;
+use App\Http\Controllers\Api\SalesReturnController;
 
 
 
@@ -161,5 +163,22 @@ Route::post('/login', [AuthController::class, 'login']);
         Route::delete('/{id}',             [StockMovementController::class, 'destroy']);
     });
 
+   // Sales Returns
+Route::prefix('sales-returns')->group(function () {
+    Route::get('/', [SalesReturnController::class, 'index']);
+    Route::post('/', [SalesReturnController::class, 'store']);
+    Route::get('/by-invoice/{invoiceId}', [SalesReturnController::class, 'getByInvoice']); // ✅ pehle
+    Route::patch('/{id}/status', [SalesReturnController::class, 'updateStatus']);           // ✅ pehle
+    Route::get('/{id}', [SalesReturnController::class, 'show']);                            // ✅ last
+});
+
+// Purchase Returns
+Route::prefix('purchase-returns')->group(function () {
+    Route::get('/', [PurchaseReturnController::class, 'index']);
+    Route::post('/', [PurchaseReturnController::class, 'store']);
+    Route::get('/by-po/{poId}', [PurchaseReturnController::class, 'getByPO']);  // ✅ pehle
+    Route::patch('/{id}/status', [PurchaseReturnController::class, 'updateStatus']); // ✅ pehle
+    Route::get('/{id}', [PurchaseReturnController::class, 'show']);             // ✅ last
+});
     
 });

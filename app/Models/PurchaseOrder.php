@@ -31,6 +31,8 @@ class PurchaseOrder extends Model
         'status',
         'notes',
         'terms_conditions',
+        'original_po_id',
+        'is_return',
     ];
 
     protected $attributes = [

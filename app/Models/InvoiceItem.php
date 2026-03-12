@@ -21,6 +21,8 @@ class InvoiceItem extends Model
         'amount',
         'tax_rate',
         'tax_amount',
+        'returned_qty',
+        'is_returned',
     ];
 
     protected $casts = [
@@ -34,6 +36,11 @@ class InvoiceItem extends Model
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
     // Auto calculate amount before saving
