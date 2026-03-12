@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\StockMovementController;
 use App\Http\Controllers\Api\PurchaseReturnController;
 use App\Http\Controllers\Api\SalesReturnController;
+use App\Http\Controllers\Api\AttributeController;
 
 
 
@@ -180,5 +181,16 @@ Route::prefix('purchase-returns')->group(function () {
     Route::patch('/{id}/status', [PurchaseReturnController::class, 'updateStatus']); // ✅ pehle
     Route::get('/{id}', [PurchaseReturnController::class, 'show']);             // ✅ last
 });
-    
+
+ Route::get('/attribute-groups', [AttributeController::class, 'indexGroups']);
+    Route::post('/attribute-groups', [AttributeController::class, 'storeGroup']);
+    Route::put('/attribute-groups/{id}', [AttributeController::class, 'updateGroup']);
+    Route::delete('/attribute-groups/{id}', [AttributeController::class, 'destroyGroup']);
+    Route::post('/attribute-groups/{groupId}/attributes', [AttributeController::class, 'storeAttribute']);
+    Route::put('/attributes/{id}', [AttributeController::class, 'updateAttribute']);
+    Route::delete('/attributes/{id}', [AttributeController::class, 'destroyAttribute']);
+    Route::get('/products/{productId}/attributes', [AttributeController::class, 'getProductAttributes']);
+    Route::post('/products/{productId}/attributes', [AttributeController::class, 'saveProductAttributes']);
 });
+    
+

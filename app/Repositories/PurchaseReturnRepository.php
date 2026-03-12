@@ -129,7 +129,7 @@ class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
             if ($allReturned) {
                 \DB::table('purchase_orders')
                     ->where('id', $originalPO->id)
-                    ->update(['status' => 'return', 'updated_at' => now()]);
+                    ->update(['status' => 'received', 'updated_at' => now()]);
             }
 
             $returnPO = $returnPO->fresh(['items.product', 'vendor']);

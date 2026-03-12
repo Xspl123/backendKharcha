@@ -71,8 +71,8 @@ class StockMovement extends Model
             'manual_in'   => 'Manual In',
             'manual_out'  => 'Manual Out',
             'adjustment'  => 'Adjustment',
-            'return_in'   => 'Purchase Return',
-            'return_out'  => 'Sale Return',
+            'return_in'   => 'Sale Return',
+            'return_out'  => 'Purchase Return',
             default       => ucfirst($this->type),
         };
     }
