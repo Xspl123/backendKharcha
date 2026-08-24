@@ -27,9 +27,16 @@ class CreateTransactionRequest extends FormRequest
     {
         return [
             'amount' => 'required|numeric|min:1',
-            'transfer_to' => 'nullable|exists:accounts,id',
+            'transfer_to' => [
+                'nullable',
+                Rule::exists('accounts', 'id')->where(function ($query) {
+                    return $query->where('user_id', Auth::id());
+                }),
+            ],
             'transaction_date' => 'required|date',
-            'description' => 'required|string|max:255',
+            'description' => 'nullable|string|max:255',
+            'repayment_date' => 'nullable|date',
+            'repayment_by' => 'nullable|string|max:255',
             'category_id' => [
                 'required',
                 Rule::exists('categories', 'id')->where(function ($query) {

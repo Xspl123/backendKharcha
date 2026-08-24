@@ -3,14 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class Company extends Model
+class Company extends TenantModel
 {
     use HasFactory;
 
     protected $fillable = [
         'user_id',
+        'org_id',
         'company_name',
         'logo',
         'address',

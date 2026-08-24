@@ -4,54 +4,55 @@ namespace App\Repositories;
 
 use App\Models\InvoicePayment;
 use App\Repositories\Interfaces\InvoicePaymentRepositoryInterface;
+use App\Repositories\Traits\OrgScope;
+use App\Repositories\Traits\PaginatesResults;
+use App\Repositories\Traits\ScopedCache;
 
 class InvoicePaymentRepository implements InvoicePaymentRepositoryInterface
 {
-    public function getAll()
+    use OrgScope, PaginatesResults, ScopedCache;
+
+    public function getAll(array $filters = [])
     {
-        return InvoicePayment::where('user_id', auth()->id())
-            ->with(['invoice.client'])
-            ->latest('payment_date')
-            ->get();
+        return $this->scopeQuery(InvoicePayment::query())
+            ->with(['invoice.client'])->latest('payment_date')
+            ->paginate($this->resolvePerPage($filters, 50));
     }
 
     public function store(array $data)
     {
-        $data['user_id'] = auth()->id();
-        
-        $payment = InvoicePayment::create($data);
-        
-        return $payment->load(['invoice.client']);
+        $payment = InvoicePayment::create($this->scopeData($data))
+            ->load(['invoice.client']);
+        $this->bumpScopedCache(['invoices', 'clients', 'gst']);
+        return $payment;
     }
 
     public function show($id)
     {
-        return InvoicePayment::where('user_id', auth()->id())
-            ->with(['invoice.client'])
-            ->findOrFail($id);
+        return $this->scopeQuery(InvoicePayment::query())
+            ->with(['invoice.client'])->findOrFail($id);
     }
 
     public function update($id, array $data)
     {
         $payment = $this->show($id);
         $payment->update($data);
-        
-        // Status update hoga automatically via model event
+        $this->bumpScopedCache(['invoices', 'clients', 'gst']);
         return $payment->load(['invoice.client']);
     }
 
     public function delete($id)
     {
-        $payment = $this->show($id);
-        return $payment->delete();
+        $deleted = $this->show($id)->delete();
+        $this->bumpScopedCache(['invoices', 'clients', 'gst']);
+        return $deleted;
     }
 
-    public function getByInvoice($invoiceId)
+    public function getByInvoice($invoiceId, array $filters = [])
     {
-        return InvoicePayment::where('user_id', auth()->id())
+        return $this->scopeQuery(InvoicePayment::query())
             ->where('invoice_id', $invoiceId)
             ->orderBy('payment_date', 'desc')
-            ->get();
+            ->paginate($this->resolvePerPage($filters, 50));
     }
 }
-?>

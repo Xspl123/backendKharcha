@@ -16,9 +16,9 @@ class ClientController extends Controller
         $this->clientRepo = $clientRepo;
     }
 
-    public function index()
+    public function index(\Illuminate\Http\Request $request)
     {
-        $clients = $this->clientRepo->getAll();
+        $clients = $this->clientRepo->getAll($request->only(['search', 'per_page']));
         return ClientResource::collection($clients);
     }
 
@@ -57,4 +57,3 @@ class ClientController extends Controller
         ]);
     }
 }
-

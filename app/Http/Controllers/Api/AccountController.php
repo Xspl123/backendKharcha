@@ -9,6 +9,7 @@ use App\Http\Requests\AccountUpdateRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+
 class AccountController extends Controller
 {
     private AccountService $accountService;
@@ -24,9 +25,9 @@ class AccountController extends Controller
         $search = $request->query('search');
         $page = $request->query('page', 1);
         $limit = $request->query('limit', 10);
-    
+
         $accounts = $this->accountService->getUserAccounts($userId, $search, $page, $limit);
-    
+
         return response()->json($accounts, 200);
     }
 
@@ -36,7 +37,7 @@ class AccountController extends Controller
         $data = array_merge($request->validated(), ['user_id' => $userId]);
 
         $account = $this->accountService->createAccount($data);
-        return response()->json(['message' => 'Account created successfully', 'data' => $account], 201);
+        return response()->json(['message' => 'Account created successfully', 'account' => $account, 'data' => $account], 201);
     }
 
     public function show(Request $request, int $id): JsonResponse
@@ -51,16 +52,18 @@ class AccountController extends Controller
         return response()->json(['data' => $account]);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(AccountUpdateRequest $request, int $id): JsonResponse
     {
         $userId = $request->user()->id;
-        $updated = $this->accountService->updateAccount($userId, $id, $request->all());
+        $updated = $this->accountService->updateAccount($userId, $id, $request->validated());
 
         if (!$updated) {
             return response()->json(['message' => 'Failed to update account'], 400);
         }
 
-        return response()->json(['message' => 'Account updated successfully']);
+        $account = $this->accountService->getAccountById($userId, $id);
+
+        return response()->json(['message' => 'Account updated successfully', 'account' => $account]);
     }
 
     public function destroy(Request $request, int $id): JsonResponse

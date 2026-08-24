@@ -16,9 +16,9 @@ class InvoicePaymentController extends Controller
         $this->paymentRepo = $paymentRepo;
     }
 
-    public function index()
+    public function index(\Illuminate\Http\Request $request)
     {
-        $payments = $this->paymentRepo->getAll();
+        $payments = $this->paymentRepo->getAll($request->only(['per_page']));
         return InvoicePaymentResource::collection($payments);
     }
 
@@ -58,9 +58,9 @@ class InvoicePaymentController extends Controller
     }
 
     // Get payments by invoice
-    public function getByInvoice($invoiceId)
+    public function getByInvoice($invoiceId, \Illuminate\Http\Request $request)
     {
-        $payments = $this->paymentRepo->getByInvoice($invoiceId);
+        $payments = $this->paymentRepo->getByInvoice($invoiceId, $request->only(['per_page']));
         return InvoicePaymentResource::collection($payments);
     }
 }

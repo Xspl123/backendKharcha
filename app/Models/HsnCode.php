@@ -3,14 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class HsnCode extends Model
+class HsnCode extends TenantModel
 {
     use HasFactory;
 
     protected $fillable = [
         'user_id',
+        'org_id',
         'hsn_code',
         'description',
         'gst_rate',

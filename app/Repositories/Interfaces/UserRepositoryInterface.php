@@ -12,5 +12,7 @@ interface UserRepositoryInterface
     public function getUserById(int $id);
     public function resetPassword(array $credentials);
     public function getAllUsers();
+    public function getAll(array $filters = []);
+    public function createUser(array $data): User;
 
 }

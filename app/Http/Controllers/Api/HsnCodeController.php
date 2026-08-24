@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\HsnCode;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 
 class HsnCodeController extends Controller
 {
     public function index()
     {
-        $hsnCodes = HsnCode::where('user_id', auth()->id())->get();
+        $hsnCodes = $this->scopeQuery()->get();
         return response()->json(['data' => $hsnCodes]);
     }
 
@@ -23,6 +25,9 @@ class HsnCodeController extends Controller
         ]);
 
         $validated['user_id'] = auth()->id();
+        if ($this->usesOrgScope()) {
+            $validated['org_id'] = auth()->user()->org_id;
+        }
 
         $hsnCode = HsnCode::create($validated);
 
@@ -34,13 +39,13 @@ class HsnCodeController extends Controller
 
     public function show($id)
     {
-        $hsnCode = HsnCode::where('user_id', auth()->id())->findOrFail($id);
+        $hsnCode = $this->scopeQuery()->findOrFail($id);
         return response()->json(['data' => $hsnCode]);
     }
 
     public function update(Request $request, $id)
     {
-        $hsnCode = HsnCode::where('user_id', auth()->id())->findOrFail($id);
+        $hsnCode = $this->scopeQuery()->findOrFail($id);
 
         $validated = $request->validate([
             'hsn_code' => 'required|string|max:20',
@@ -58,11 +63,29 @@ class HsnCodeController extends Controller
 
     public function destroy($id)
     {
-        $hsnCode = HsnCode::where('user_id', auth()->id())->findOrFail($id);
+        $hsnCode = $this->scopeQuery()->findOrFail($id);
         $hsnCode->delete();
 
         return response()->json([
             'message' => 'HSN Code deleted successfully'
         ]);
+    }
+
+    private function scopeQuery(): Builder
+    {
+        $query = HsnCode::query();
+
+        if ($this->usesOrgScope()) {
+            return $query->where('org_id', auth()->user()->org_id);
+        }
+
+        return $query->where('user_id', auth()->id());
+    }
+
+    private function usesOrgScope(): bool
+    {
+        $user = auth()->user();
+
+        return $user && $user->hasOrg() && Schema::hasColumn('hsn_codes', 'org_id');
     }
 }

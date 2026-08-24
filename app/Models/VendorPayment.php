@@ -2,15 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class VendorPayment extends Model
+class VendorPayment extends TenantModel
 {
     use HasFactory;
 
     protected $fillable = [
         'user_id',
+        'org_id',
         'vendor_id',
         'purchase_order_id',
         'amount',

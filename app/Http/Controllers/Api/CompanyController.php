@@ -5,13 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Company;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class CompanyController extends Controller
 {
     public function index()
     {
-        $companies = Company::where('user_id', auth()->id())->get();
+        $companies = $this->scopeQuery()->get();
         return response()->json(['data' => $companies]);
     }
 
@@ -36,6 +38,9 @@ class CompanyController extends Controller
         ]);
 
         $validated['user_id'] = auth()->id();
+        if ($this->usesOrgScope()) {
+            $validated['org_id'] = auth()->user()->org_id;
+        }
 
         // Handle logo upload
         if ($request->hasFile('logo')) {
@@ -53,13 +58,13 @@ class CompanyController extends Controller
 
     public function show($id)
     {
-        $company = Company::where('user_id', auth()->id())->findOrFail($id);
+        $company = $this->scopeQuery()->findOrFail($id);
         return response()->json(['data' => $company]);
     }
 
     public function update(Request $request, $id)
     {
-        $company = Company::where('user_id', auth()->id())->findOrFail($id);
+        $company = $this->scopeQuery()->findOrFail($id);
 
         $validated = $request->validate([
             'company_name' => 'required|string|max:255',
@@ -99,7 +104,7 @@ class CompanyController extends Controller
 
     public function destroy($id)
     {
-        $company = Company::where('user_id', auth()->id())->findOrFail($id);
+        $company = $this->scopeQuery()->findOrFail($id);
         
         // Delete logo
         if ($company->logo) {
@@ -111,5 +116,23 @@ class CompanyController extends Controller
         return response()->json([
             'message' => 'Company deleted successfully'
         ]);
+    }
+
+    private function scopeQuery(): Builder
+    {
+        $query = Company::query();
+
+        if ($this->usesOrgScope()) {
+            return $query->where('org_id', auth()->user()->org_id);
+        }
+
+        return $query->where('user_id', auth()->id());
+    }
+
+    private function usesOrgScope(): bool
+    {
+        $user = auth()->user();
+
+        return $user && $user->hasOrg() && Schema::hasColumn('companies', 'org_id');
     }
 }

@@ -2,16 +2,16 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class Vendor extends Model
+class Vendor extends TenantModel
 {
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
+        'org_id',
         'vendor_name',
         'company_name',
         'email',

@@ -3,109 +3,111 @@
 namespace App\Repositories;
 
 use App\Models\Vendor;
+use App\Models\PurchaseOrder;
+use App\Models\VendorPayment;
 use App\Repositories\Interfaces\VendorRepositoryInterface;
+use App\Repositories\Traits\OrgScope;
+use App\Repositories\Traits\PaginatesResults;
+use App\Repositories\Traits\ScopedCache;
 
 class VendorRepository implements VendorRepositoryInterface
 {
-    // ── Get All ────────────────────────────────────────────
+    use OrgScope, PaginatesResults, ScopedCache;
 
     public function getAll(array $filters): mixed
     {
-        $query = Vendor::where('user_id', auth()->id())
+        $query = $this->scopeQuery(Vendor::query())
             ->withCount('purchaseOrders')
             ->orderByDesc('created_at');
 
-        // Search
         if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('vendor_name',  'like', "%{$search}%")
-                  ->orWhere('company_name', 'like', "%{$search}%")
-                  ->orWhere('email',        'like', "%{$search}%")
-                  ->orWhere('phone',        'like', "%{$search}%")
-                  ->orWhere('gstin',        'like', "%{$search}%");
-            });
+            $s = $filters['search'];
+            $query->where(fn($q) => $q
+                ->where('vendor_name',  'like', "%{$s}%")
+                ->orWhere('company_name','like', "%{$s}%")
+                ->orWhere('email',       'like', "%{$s}%")
+                ->orWhere('phone',       'like', "%{$s}%")
+                ->orWhere('gstin',       'like', "%{$s}%")
+            );
         }
+        if (!empty($filters['status'])) $query->where('status', $filters['status']);
 
-        // Status filter
-        if (!empty($filters['status'])) {
-            $query->where('status', $filters['status']);
-        }
-
-        return $query->get();
+        return $query->paginate($this->resolvePerPage($filters));
     }
-
-    // ── Get By ID ──────────────────────────────────────────
 
     public function getById(int $id): mixed
     {
-        return Vendor::where('user_id', auth()->id())
+        return $this->scopeQuery(Vendor::query())
             ->with([
                 'purchaseOrders' => fn($q) => $q->latest()->take(5),
                 'payments'       => fn($q) => $q->latest()->take(5),
-            ])
-            ->findOrFail($id);
+            ])->findOrFail($id);
     }
-
-    // ── Create ─────────────────────────────────────────────
 
     public function create(array $data): mixed
     {
-        return Vendor::create([
-            ...$data,
-            'user_id' => auth()->id(),
-        ]);
+        $vendor = Vendor::create($this->scopeData($data));
+        $this->bumpScopedCache(['vendors', 'purchase_orders']);
+        return $vendor;
     }
-
-    // ── Update ─────────────────────────────────────────────
 
     public function update(int $id, array $data): mixed
     {
-        $vendor = Vendor::where('user_id', auth()->id())->findOrFail($id);
+        $vendor = $this->scopeQuery(Vendor::query())->findOrFail($id);
         $vendor->update($data);
+        $this->bumpScopedCache(['vendors', 'purchase_orders']);
         return $vendor->fresh();
     }
 
-    // ── Delete ─────────────────────────────────────────────
-
     public function delete(int $id): bool
     {
-        $vendor = Vendor::where('user_id', auth()->id())->findOrFail($id);
-
-        // Check karo koi active PO toh nahi
-        $activePOs = $vendor->purchaseOrders()
-            ->whereIn('status', ['pending', 'approved'])
-            ->count();
-
+        $vendor = $this->scopeQuery(Vendor::query())->findOrFail($id);
         abort_if(
-            $activePOs > 0,
-            422,
-            'Vendor ke active purchase orders hain. Pehle unhe cancel ya complete karo.'
+            $vendor->purchaseOrders()->whereIn('status', ['pending','approved'])->count() > 0,
+            422, 'Vendor ke active purchase orders hain.'
         );
-
+        $this->bumpScopedCache(['vendors', 'purchase_orders']);
         return $vendor->delete();
     }
 
-    // ── Summary ────────────────────────────────────────────
-
     public function getSummary(): array
-    {
-        $vendors = Vendor::where('user_id', auth()->id())
-            ->withSum(['purchaseOrders as total_purchases' => fn($q) =>
-                $q->whereIn('status', ['approved', 'received'])
-            ], 'total_amount')
-            ->withSum('payments as total_paid', 'amount')
-            ->get();
+  {
+      return $this->rememberScoped('vendors', 'summary', 300, function () {
+          $vendorCounts = $this->scopeQuery(Vendor::query())
+              ->selectRaw('
+                  COUNT(*) as total_vendors,
+                  SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as active_vendors,
+                  SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as inactive_vendors
+              ', ['active', 'inactive'])
+              ->first();
 
-        return [
-            'total_vendors'   => $vendors->count(),
-            'active_vendors'  => $vendors->where('status', 'active')->count(),
-            'inactive_vendors'=> $vendors->where('status', 'inactive')->count(),
-            'total_purchases' => round($vendors->sum('total_purchases'), 2),
-            'total_paid'      => round($vendors->sum('total_paid'), 2),
-            'total_balance'   => round(
-                $vendors->sum('total_purchases') - $vendors->sum('total_paid'), 2
-            ),
-        ];
-    }
+          $poTotals = $this->scopeQuery(PurchaseOrder::query())
+              ->selectRaw('
+                  COALESCE(SUM(CASE WHEN status IN (?, ?) THEN total_amount ELSE 0 END), 0) as total_purchases,
+                  COALESCE(SUM(CASE WHEN status IN (?, ?) THEN total_amount ELSE 0 END), 0) as returned_amount
+              ', ['approved', 'received', 'returned', 'return'])
+              ->first();
+
+          $totalPurchases = round((float) $poTotals->total_purchases, 2);
+          $returnedAmount = round((float) $poTotals->returned_amount, 2);
+          $netPurchases   = round($totalPurchases - $returnedAmount, 2);
+          $totalPaid      = round((float) $this->scopeQuery(VendorPayment::query())->sum('amount'), 2);
+          $balance        = round(max($netPurchases - $totalPaid, 0), 2);
+          $advancePaid    = round(max($totalPaid - $netPurchases, 0), 2);
+
+          return [
+              'total_vendors'    => (int) $vendorCounts->total_vendors,
+              'active_vendors'   => (int) $vendorCounts->active_vendors,
+              'inactive_vendors' => (int) $vendorCounts->inactive_vendors,
+
+              'total_purchases'  => $totalPurchases,
+              'returned_amount'  => $returnedAmount,
+              'net_purchases'    => $netPurchases,
+              'total_paid'       => $totalPaid,
+              'total_balance'    => $balance,
+              'advance_paid'     => $advancePaid,
+          ];
+      });
+  }
+
 }

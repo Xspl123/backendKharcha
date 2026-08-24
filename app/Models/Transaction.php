@@ -18,6 +18,8 @@ class Transaction extends Model
         'description',
         'transaction_date',
         'transfer_to',
+        'repayment_date',
+        'repayment_by',
     ];
 
     /**

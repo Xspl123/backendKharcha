@@ -21,6 +21,10 @@ class PurchaseOrderItemResource extends JsonResource
             'tax_rate'    => (float) $this->tax_rate,
             'tax_amount'  => (float) $this->tax_amount,
             'product_id'  => $this->product_id,
+            'returned_qty'=> (float) ($this->returned_qty ?? 0),
+            'remaining_qty' => (float) $this->remaining_qty,
+            'is_returned' => (bool) $this->is_returned,
+            'is_return_item' => (bool) $this->is_return_item,
         ];
     }
 }

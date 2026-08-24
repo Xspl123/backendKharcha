@@ -2,16 +2,24 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\TenantRequestRules;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreProductRequest extends FormRequest
 {
+    use TenantRequestRules;
+
     public function authorize(): bool { return true; }
 
     public function rules(): array
     {
+        $user = $this->user();
+
         return [
-            'product_category_id' => 'nullable|exists:product_categories,id',
+            'product_category_id' => [
+                'nullable',
+                $this->tenantScopedExists('product_categories'),
+            ],
             'name'                => 'required|string|max:255',
             'sku'                 => 'nullable|string|max:100',
             'hsn_code'            => 'nullable|string|max:20',

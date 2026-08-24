@@ -5,82 +5,66 @@ namespace App\Repositories;
 use App\Models\VendorPayment;
 use App\Models\PurchaseOrder;
 use App\Repositories\Interfaces\VendorPaymentRepositoryInterface;
+use App\Repositories\Traits\OrgScope;
+use App\Repositories\Traits\PaginatesResults;
+use App\Repositories\Traits\ScopedCache;
 use Illuminate\Support\Facades\DB;
 
 class VendorPaymentRepository implements VendorPaymentRepositoryInterface
 {
-    // ── Get By Purchase Order ──────────────────────────────
+    use OrgScope, PaginatesResults, ScopedCache;
 
-    public function getByPurchaseOrder(int $purchaseOrderId): mixed
+    public function getByPurchaseOrder(int $purchaseOrderId, array $filters = []): mixed
     {
-        return VendorPayment::where('purchase_order_id', $purchaseOrderId)
-            ->where('user_id', auth()->id())
+        return $this->scopeQuery(VendorPayment::query())
+            ->where('purchase_order_id', $purchaseOrderId)
             ->orderByDesc('payment_date')
-            ->get();
+            ->paginate($this->resolvePerPage($filters, 50));
     }
 
-    // ── Get By Vendor ──────────────────────────────────────
-
-    public function getByVendor(int $vendorId): mixed
+    public function getByVendor(int $vendorId, array $filters = []): mixed
     {
-        return VendorPayment::where('vendor_id', $vendorId)
-            ->where('user_id', auth()->id())
+        return $this->scopeQuery(VendorPayment::query())
+            ->where('vendor_id', $vendorId)
             ->with('purchaseOrder:id,po_number,total_amount')
             ->orderByDesc('payment_date')
-            ->get();
+            ->paginate($this->resolvePerPage($filters, 50));
     }
-
-    // ── Create ─────────────────────────────────────────────
 
     public function create(array $data): mixed
     {
         return DB::transaction(function () use ($data) {
-            $po = PurchaseOrder::where('user_id', auth()->id())
-                ->findOrFail($data['purchase_order_id']);
+            $po = $this->scopeQuery(PurchaseOrder::query())->findOrFail($data['purchase_order_id']);
 
-            // Validate — overpayment check
-            $alreadyPaid = $po->paid_amount;
-            $newTotal    = $alreadyPaid + (float) $data['amount'];
+            $newTotal = $po->paid_amount + (float) $data['amount'];
+            abort_if($newTotal > $po->total_amount, 422,
+                'Payment amount PO balance se zyada hai. Balance: ₹' . number_format($po->balance_amount, 2));
 
-            abort_if(
-                $newTotal > $po->total_amount,
-                422,
-                'Payment amount PO balance se zyada hai. Balance: ₹' .
-                number_format($po->balance_amount, 2)
-            );
-
-            // Payment create karo
-            $payment = VendorPayment::create([
-                'user_id'           => auth()->id(),
+            $payment = VendorPayment::create($this->scopeData([
                 'vendor_id'         => $po->vendor_id,
                 'purchase_order_id' => $po->id,
                 'amount'            => $data['amount'],
                 'payment_date'      => $data['payment_date'],
-                'payment_method'    => $data['payment_method']  ?? 'bank_transfer',
-                'reference_no'      => $data['reference_no']    ?? null,
-                'notes'             => $data['notes']           ?? null,
-            ]);
+                'payment_method'    => $data['payment_method'] ?? 'bank_transfer',
+                'reference_no'      => $data['reference_no']   ?? null,
+                'notes'             => $data['notes']          ?? null,
+            ]));
 
-            // PO payment status update karo
             $po->updatePaymentStatus();
 
+            $this->bumpScopedCache(['vendors', 'purchase_orders']);
             return $payment->load('purchaseOrder:id,po_number,total_amount,paid_amount,balance_amount');
         });
     }
 
-    // ── Delete ─────────────────────────────────────────────
-
     public function delete(int $id): bool
     {
         return DB::transaction(function () use ($id) {
-            $payment = VendorPayment::where('user_id', auth()->id())->findOrFail($id);
-            $po      = $payment->purchaseOrder;
-
+            $payment = $this->scopeQuery(VendorPayment::query())->findOrFail($id);
+            $po = $payment->purchaseOrder;
             $payment->delete();
-
-            // PO amounts recalculate karo
             $po->updatePaymentStatus();
-
+            $this->bumpScopedCache(['vendors', 'purchase_orders']);
             return true;
         });
     }

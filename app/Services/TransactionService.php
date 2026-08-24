@@ -57,21 +57,30 @@ class TransactionService
             }
         }
 
-        switch (strtolower($category->type)) {
+        $amount = (float) $data['amount'];
+        $categoryType = strtolower($category->type);
+
+        switch ($categoryType) {
             case 'expense':
             case 'saving':
             case 'borrow_return':
-                if ($account->account_balance < $data['amount']) {
-                    return ['error' => 'Insufficient balance in account!'];
+            case 'repayment':
+                $balanceResult = $this->applyDebit($account, $amount);
+                if (isset($balanceResult['error'])) {
+                    return $balanceResult;
                 }
-                $account->account_balance -= $data['amount'];
                 break;
 
             case 'income':
             case 'borrow':
-            case 'reimbursement':    
-                $account->account_balance += $data['amount'];
+            case 'reimbursement':
+                if ($account->isCreditCard()) {
+                    return ['error' => 'Income is not allowed directly into a credit card. Use transfer from bank/cash to pay the card bill.'];
+                }
+
+                $account->account_balance += $amount;
                 break;
+
             case 'transfer':
                 $transferTo = $data['transfer_to'] ?? null;
 
@@ -79,19 +88,21 @@ class TransactionService
                     return ['error' => 'To Account is required for transfer transactions!'];
                 }
 
-                if ($account->account_balance < $data['amount']) {
-                    return ['error' => 'Insufficient balance in from-account!'];
+                if ((int) $transferTo === (int) $account->id) {
+                    return ['error' => 'From and To accounts cannot be the same!'];
                 }
-                $account->account_balance -= $data['amount'];
-                $account->save();
-                $toAccount = Account::find($transferTo);
+
+                $toAccount = $this->accountRepository->findById($data['user_id'], (int) $transferTo);
                 if (!$toAccount) {
                     return ['error' => 'To Account not found!'];
                 }
-                $toAccount->account_balance += $data['amount'];
-                $toAccount->save();
+
+                $transferResult = $this->applyTransfer($account, $toAccount, $amount);
+                if (isset($transferResult['error'])) {
+                    return $transferResult;
+                }
                 break;
-        
+
             case 'special':
             default:
                 break;
@@ -121,6 +132,52 @@ class TransactionService
         }
 
         return $transaction;
+    }
+
+
+    protected function applyDebit(Account $account, float $amount): array
+    {
+        if ($account->isCreditCard()) {
+            $creditLimit = (float) ($account->credit_limit ?? 0);
+            if ($creditLimit <= 0) {
+                return ['error' => 'Credit limit is required for credit card transactions!'];
+            }
+
+            if ($account->outstanding + $amount > $creditLimit) {
+                return ['error' => 'Credit card available limit is insufficient!'];
+            }
+
+            $account->account_balance -= $amount;
+            return ['success' => true];
+        }
+
+        if ($account->account_balance < $amount) {
+            return ['error' => 'Insufficient balance in account!'];
+        }
+
+        $account->account_balance -= $amount;
+        return ['success' => true];
+    }
+
+    protected function applyTransfer(Account $fromAccount, Account $toAccount, float $amount): array
+    {
+        if ($fromAccount->isCreditCard()) {
+            return ['error' => 'Transfers from a credit card are not allowed. Add expenses on the card, or pay the card from bank/cash.'];
+        }
+
+        if ($fromAccount->account_balance < $amount) {
+            return ['error' => 'Insufficient balance in from-account!'];
+        }
+
+        if ($toAccount->isCreditCard() && $amount > $toAccount->outstanding) {
+            return ['error' => 'Payment amount cannot exceed credit card outstanding!'];
+        }
+
+        $fromAccount->account_balance -= $amount;
+        $toAccount->account_balance += $amount;
+        $toAccount->save();
+
+        return ['success' => true];
     }
 
     public function updateLoanLedger(array $data, string $type)
@@ -235,16 +292,14 @@ class TransactionService
 
         // Handle rollback based on transaction type
         switch (strtolower($transaction->category->type)) {
-
-            // EXPENSE / SAVING / BORROW RETURN → add back money
             case 'expense':
             case 'saving':
-            case 'borrow_return': 
-                $account->account_balance += $transaction->amount; 
+            case 'borrow_return':
+            case 'repayment':
+                $account->account_balance += $transaction->amount;
                 $account->save();
                 break;
 
-            // INCOME / BORROW / REIMBURSEMENT → subtract money
             case 'income':
             case 'borrow':
             case 'reimbursement':
@@ -252,16 +307,12 @@ class TransactionService
                 $account->save();
                 break;
 
-            // NEW: TRANSFER ROLLBACK
             case 'transfer':
-
-                // FROM account rollback: add back money
                 $account->account_balance += $transaction->amount;
                 $account->save();
 
-                // TO account rollback: deduct money
                 if ($transaction->transfer_to) {
-                    $toAccount = Account::find($transaction->transfer_to);
+                    $toAccount = $this->accountRepository->findById(Auth::id(), (int) $transaction->transfer_to);
 
                     if ($toAccount) {
                         $toAccount->account_balance -= $transaction->amount;

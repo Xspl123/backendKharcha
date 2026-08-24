@@ -2,15 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class GstReturn extends Model
+class GstReturn extends TenantModel
 {
     use HasFactory;
 
     protected $fillable = [
         'user_id',
+        'org_id',
         'return_type',
         'period',
         'status',

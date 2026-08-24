@@ -2,17 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 
-class InvoicePayment extends Model
+class InvoicePayment extends TenantModel
 {
    use HasFactory;
 
     protected $fillable = [
         'invoice_id',
         'user_id',
+        'org_id',
         'amount',
         'payment_date',
         'payment_method',

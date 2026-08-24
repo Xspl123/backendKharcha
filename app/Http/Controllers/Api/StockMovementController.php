@@ -18,7 +18,7 @@ class StockMovementController extends Controller
     public function index(Request $request)
     {
         $movements = $this->stockRepo->getAll($request->only([
-            'product_id', 'type', 'from_date', 'to_date'
+            'product_id', 'type', 'from_date', 'to_date', 'per_page'
         ]));
         return StockMovementResource::collection($movements);
     }
@@ -36,7 +36,7 @@ class StockMovementController extends Controller
     {
         $movements = $this->stockRepo->getByProduct(
             $productId,
-            $request->only(['type', 'from_date', 'to_date'])
+            $request->only(['type', 'from_date', 'to_date', 'per_page'])
         );
         return StockMovementResource::collection($movements);
     }

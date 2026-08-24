@@ -19,11 +19,13 @@ class VendorPaymentController extends Controller
     {
         if ($request->filled('purchase_order_id')) {
             $payments = $this->paymentRepo->getByPurchaseOrder(
-                $request->purchase_order_id
+                $request->purchase_order_id,
+                $request->only(['per_page'])
             );
         } elseif ($request->filled('vendor_id')) {
             $payments = $this->paymentRepo->getByVendor(
-                $request->vendor_id
+                $request->vendor_id,
+                $request->only(['per_page'])
             );
         } else {
             return response()->json([

@@ -21,7 +21,7 @@ class ClientRequest extends FormRequest
      */
     public function rules(): array
     {
-         return [
+        return [
             'company_name' => 'required|string|max:255',
             'contact_person' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',

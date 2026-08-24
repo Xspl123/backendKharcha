@@ -18,7 +18,7 @@ class VendorController extends Controller
     public function index(Request $request)
     {
         $vendors = $this->vendorRepo->getAll($request->only([
-            'search', 'status'
+            'search', 'status', 'per_page'
         ]));
 
         return VendorResource::collection($vendors);

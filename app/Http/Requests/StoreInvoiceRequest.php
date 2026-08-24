@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\TenantRequestRules;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreInvoiceRequest extends FormRequest
 {
+    use TenantRequestRules;
+
     public function authorize(): bool
     {
         return true;
@@ -14,8 +17,14 @@ class StoreInvoiceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'company_id' => 'required|exists:companies,id',
-            'client_id' => 'required|exists:clients,id',
+            'company_id' => [
+                'required',
+                $this->tenantScopedExists('companies'),
+            ],
+            'client_id' => [
+                'required',
+                $this->tenantScopedExists('clients'),
+            ],
 
             'invoice_date' => 'required|date',
             'due_date' => 'nullable|date|after_or_equal:invoice_date',
@@ -29,7 +38,10 @@ class StoreInvoiceRequest extends FormRequest
             'is_reverse_charge'         => 'nullable|boolean',
             'items' => 'required|array|min:1',
             'items.*.item_name' => 'required|string|max:255',
-            'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.product_id' => [
+                'nullable',
+                $this->tenantScopedExists('products'),
+            ],
             'items.*.description' => 'nullable|string',
             'items.*.hsn_code' => 'nullable|string|max:255',
             'items.*.qty' => 'required|numeric|min:0.01',
@@ -54,7 +66,7 @@ class StoreInvoiceRequest extends FormRequest
             'invoice_type.in'               => 'Invoice type must be: b2b, b2cs, b2cl, or export',
             'supply_type.required'          => 'Supply type is required',
             'supply_type.in'                => 'Supply type must be: intra or inter',
-            'place_of_supply.size'          => 'Place of supply must be 2-digit state code e.g. 27',
+            'place_of_supply.max'           => 'Place of supply must not exceed 255 characters',
             'items.required' => 'At least one item is required',
             'items.*.item_name.required' => 'Item name is required',
             'items.*.product_id.exists' => 'Selected product does not exist',
@@ -64,4 +76,3 @@ class StoreInvoiceRequest extends FormRequest
         ];
     }
 }
-

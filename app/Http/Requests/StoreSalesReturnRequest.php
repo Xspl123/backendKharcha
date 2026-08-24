@@ -11,7 +11,6 @@ class StoreSalesReturnRequest extends FormRequest
 
     public function rules(): array
     {
-        // 🔍 DEBUGGING - Yeh line add karo
         \Log::info('📦 Incoming Request Data:', [
             'all' => $this->all(),
             'json' => $this->json()->all(),

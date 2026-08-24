@@ -17,7 +17,7 @@ class AccountService
 
     public function createAccount(array $data): Account
     {
-        return $this->accountRepository->create($data);
+        return $this->accountRepository->create($this->normalizeAccountData($data));
     }
 
     public function getUserAccounts(int $userId, ?string $search = null, int $page = 1, int $limit = 10): LengthAwarePaginator
@@ -33,11 +33,25 @@ class AccountService
 
     public function updateAccount(int $userId, int $id, array $data): bool
     {
-        return $this->accountRepository->update($userId, $id, $data);
+        return $this->accountRepository->update($userId, $id, $this->normalizeAccountData($data));
     }
 
     public function deleteAccount(int $userId, int $id): bool
     {
         return $this->accountRepository->delete($userId, $id);
+    }
+
+    private function normalizeAccountData(array $data): array
+    {
+        $data['account_type'] = $data['account_type'] ?? Account::TYPE_CASH;
+        $data['account_balance'] = $data['account_balance'] ?? 0;
+
+        if ($data['account_type'] !== Account::TYPE_CREDIT_CARD) {
+            $data['credit_limit'] = null;
+            $data['billing_cycle_day'] = null;
+            $data['payment_due_day'] = null;
+        }
+
+        return $data;
     }
 }

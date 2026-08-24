@@ -8,19 +8,16 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Log;
 
 class StockService
 {
     // ══════════════════════════════════════════════════════
-    // ADD MOVEMENT — Generic method
-    // StockMovementRepository yahan call karta hai
+    // ADD MOVEMENT
     // ══════════════════════════════════════════════════════
 
     public static function addMovement(array $data): StockMovement
     {
-        // ✅ Product resolve — object ya product_id dono accept karo
-        // StockMovementRepository 'product' => $obj pass karta hai
-        // SalesReturnRepository    'product_id' => int pass karta hai
         $product   = null;
         $productId = null;
 
@@ -37,51 +34,44 @@ class StockService
         }
 
         $type = $data['type'] ?? null;
-        if (!$type) {
-            throw new \Exception('Movement type required');
-        }
+        if (!$type) throw new \Exception('Movement type required');
 
         $qty  = (float) ($data['qty']  ?? 0);
         $rate = (float) ($data['rate'] ?? $product->avg_cost ?? 0);
 
-        // ✅ stock_before — caller ne diya toh use karo, warna current stock
         $stockBefore = isset($data['stock_before'])
             ? (float) $data['stock_before']
             : (float) $product->current_stock;
 
-        // ✅ stock_after — caller ne diya toh use karo, warna calculate karo
         if (isset($data['stock_after'])) {
             $stockAfter = (float) $data['stock_after'];
         } else {
             $inTypes  = ['purchase_in', 'return_in', 'opening', 'adjustment_plus', 'manual_in'];
             $outTypes = ['sale_out', 'adjustment_minus', 'manual_out', 'return_out'];
-
             if (in_array($type, $inTypes)) {
                 $stockAfter = $stockBefore + $qty;
             } elseif (in_array($type, $outTypes)) {
                 $stockAfter = max(0, $stockBefore - $qty);
             } else {
-                $stockAfter = $stockBefore + $qty; // default +
+                $stockAfter = $stockBefore + $qty;
             }
         }
 
         $value = (float) ($data['value'] ?? round($qty * $rate, 2));
 
-        // ✅ reference — 'reference' array ya flat keys dono support
-        $ref = $data['reference'] ?? [];
+        $ref           = $data['reference'] ?? [];
         $referenceType = $data['reference_type'] ?? $ref['type'] ?? null;
         $referenceId   = $data['reference_id']   ?? $ref['id']   ?? null;
         $referenceNo   = $data['reference_no']   ?? $ref['no']   ?? null;
 
-        // ✅ movement_date — 'date' alias bhi accept karo (StockMovementRepository 'date' pass karta hai)
-        $movementDate = $data['movement_date']
-            ?? $data['date']
-            ?? now()->toDateString();
+        $movementDate = $data['movement_date'] ?? $data['date'] ?? now()->toDateString();
+        $userId       = $data['user_id'] ?? auth()->id() ?? $product->user_id;
 
-        $userId = $data['user_id'] ?? auth()->id() ?? $product->user_id;
+        $orgId = $data['org_id'] ?? $product->org_id ?? null;
 
         $movement = StockMovement::create([
             'user_id'        => $userId,
+            'org_id'         => $orgId,  
             'product_id'     => $productId,
             'type'           => $type,
             'qty'            => $qty,
@@ -96,7 +86,6 @@ class StockService
             'movement_date'  => $movementDate,
         ]);
 
-        // ✅ Product current_stock update — stock_after se
         $product->update(['current_stock' => $stockAfter]);
 
         return $movement;
@@ -108,6 +97,9 @@ class StockService
 
     public static function recordSaleOut(array $items, int $userId, int $invoiceId, string $invoiceNo): void
     {
+        // ✅ org_id user se
+        $orgId = \App\Models\User::find($userId)?->org_id;
+
         foreach ($items as $item) {
             $productId = $item['product_id'] ?? null;
             $qty       = (float) ($item['qty']  ?? 0);
@@ -123,6 +115,7 @@ class StockService
 
             StockMovement::create([
                 'user_id'        => $userId,
+                'org_id'         => $orgId, 
                 'product_id'     => $productId,
                 'type'           => 'sale_out',
                 'qty'            => $qty,
@@ -141,8 +134,13 @@ class StockService
         }
     }
 
+    // ══════════════════════════════════════════════════════
+    // REVERSE SALE OUT
+    // ══════════════════════════════════════════════════════
+
     public static function reverseSaleOut(int $invoiceId, int $userId, string $invoiceNo): void
     {
+        $orgId     = \App\Models\User::find($userId)?->org_id;
         $movements = StockMovement::where('reference_type', 'invoice')
             ->where('reference_id', $invoiceId)
             ->where('type', 'sale_out')
@@ -157,6 +155,7 @@ class StockService
 
             StockMovement::create([
                 'user_id'        => $userId,
+                'org_id'         => $orgId,  
                 'product_id'     => $movement->product_id,
                 'type'           => 'return_in',
                 'qty'            => $movement->qty,
@@ -182,40 +181,51 @@ class StockService
 
     // ══════════════════════════════════════════════════════
     // PURCHASE ORDER — Purchase In
-    // PO received hone par:
-    //   - Agar product_id linked → stock update karo
-    //   - Agar product_id null   → auto product create karo phir stock update
     // ══════════════════════════════════════════════════════
 
     public function processPurchaseOrderReceived(PurchaseOrder $po): void
     {
         DB::transaction(function () use ($po) {
-            foreach ($po->items as $item) {
+            $orgId = $po->org_id;
+            $userId = $po->user_id;
 
+            Log::info('Processing PO Receipt', [
+                'po_id' => $po->id,
+                'po_number' => $po->po_number,
+                'user_id' => $userId,
+                'org_id' => $orgId,
+            ]);
+
+            foreach ($po->items as $item) {
                 if ($item->qty <= 0) continue;
 
-                // ── Step 1: Product resolve karo ─────────────
                 $product = null;
 
+                // Try to find existing product
                 if ($item->product_id) {
-                    // Already linked → directly use karo
-                    $product = Product::where('user_id', auth()->id())
+                    $product = Product::where('user_id', $userId)
+                        ->where('org_id', $orgId)
                         ->find($item->product_id);
                 }
 
+                // Auto create product if not found
                 if (!$product) {
-                    // ── Auto Product Create ───────────────────
-                    $product = $this->autoCreateProduct($item, $po);
-
-                    // PO item mein product_id save karo (future reference)
+                    $product = $this->autoCreateProduct($item, $po, $userId, $orgId);
+                    
+                    // Update the PO item with the new product_id
                     $item->update(['product_id' => $product->id]);
+                    
+                    Log::info('Auto-created product', [
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'po_item_id' => $item->id,
+                    ]);
                 }
 
-                // ── Step 2: Stock Movement ────────────────────
+                // Calculate stock changes
                 $stockBefore = (float) $product->current_stock;
                 $stockAfter  = $stockBefore + (float) $item->qty;
 
-                // Weighted Average Cost update
                 $oldValue   = $stockBefore * (float) $product->avg_cost;
                 $newValue   = (float) $item->qty * (float) $item->rate;
                 $totalQty   = $stockBefore + (float) $item->qty;
@@ -223,8 +233,10 @@ class StockService
                     ? round(($oldValue + $newValue) / $totalQty, 2)
                     : (float) $item->rate;
 
-                StockMovement::create([
-                    'user_id'        => auth()->id(),
+                // Create stock movement
+                $movement = StockMovement::create([
+                    'user_id'        => $userId,
+                    'org_id'         => $orgId,
                     'product_id'     => $product->id,
                     'type'           => 'purchase_in',
                     'qty'            => $item->qty,
@@ -236,11 +248,19 @@ class StockService
                     'reference_id'   => $po->id,
                     'reference_no'   => $po->po_number,
                     'notes'          => "PO #{$po->po_number} — Purchase Received"
-                        . ($stockBefore == 0 ? ' (Auto Created)' : ''),
+                        . ($stockBefore == 0 ? ' (Product Auto Created)' : ''),
                     'movement_date'  => $po->received_date ?? now()->toDateString(),
                 ]);
 
-                // ── Step 3: Product stock + avg_cost update ───
+                Log::info('Stock movement created', [
+                    'movement_id' => $movement->id,
+                    'product_id' => $product->id,
+                    'user_id' => $movement->user_id,
+                    'org_id' => $movement->org_id,
+                    'qty' => $item->qty,
+                ]);
+
+                // Update product stock and average cost
                 $product->update([
                     'current_stock' => $stockAfter,
                     'avg_cost'      => $newAvgCost,
@@ -251,31 +271,24 @@ class StockService
 
     // ══════════════════════════════════════════════════════
     // OPENING STOCK SET
-    // Product ki opening stock set/update karo
-    // ProductRepository 3 params pass karta hai:
-    //   ($product, $newOpeningStock, $purchasePrice)
     // ══════════════════════════════════════════════════════
 
-    public function setOpeningStock(
-        Product $product,
-        float   $newOpeningStock,
-        float   $purchasePrice = 0.0   // ← 3rd param (optional, default 0)
-    ): void {
+    public function setOpeningStock(Product $product, float $newOpeningStock, float $purchasePrice = 0.0): void
+    {
         $oldOpeningStock = (float) $product->opening_stock;
         $diff            = $newOpeningStock - $oldOpeningStock;
 
-        // Kuch change nahi hua — kuch mat karo
         if ($diff == 0) return;
 
-        // Rate: purchasePrice > 0 use karo, warna product ki avg_cost
         $rate = $purchasePrice > 0 ? $purchasePrice : (float) $product->avg_cost;
 
         DB::transaction(function () use ($product, $newOpeningStock, $diff, $oldOpeningStock, $rate) {
             $stockBefore = (float) $product->current_stock;
             $stockAfter  = max(0, $stockBefore + $diff);
 
-            StockMovement::create([
+            $movement = StockMovement::create([
                 'user_id'        => auth()->id() ?? $product->user_id,
+                'org_id'         => $product->org_id,
                 'product_id'     => $product->id,
                 'type'           => 'opening',
                 'qty'            => abs($diff),
@@ -290,10 +303,17 @@ class StockService
                 'movement_date'  => now()->toDateString(),
             ]);
 
+            Log::info('Opening Stock Movement Created', [
+                'movement_id' => $movement->id,
+                'product_id' => $product->id,
+                'user_id' => $movement->user_id,
+                'org_id' => $movement->org_id,
+                'diff' => $diff,
+            ]);
+
             $product->update([
                 'opening_stock' => $newOpeningStock,
                 'current_stock' => $stockAfter,
-                // avg_cost bhi update karo agar rate mila
                 'avg_cost'      => $rate > 0 ? $rate : $product->avg_cost,
             ]);
         });
@@ -301,85 +321,101 @@ class StockService
 
     // ══════════════════════════════════════════════════════
     // INVENTORY SUMMARY
-    // Dashboard stats ke liye
     // ══════════════════════════════════════════════════════
 
-    public function getSummary(int $userId): array
+    public function getSummary(int $userId, ?int $orgId = null): array
     {
-        $products = Product::where('user_id', $userId)->get();
-
-        $totalProducts   = $products->count();
-        $activeProducts  = $products->where('status', 'active')->count();
-        $totalStockValue = $products->sum(fn($p) => $p->current_stock * $p->avg_cost);
-        $lowStockCount   = $products->filter(fn($p) =>
-            $p->low_stock_alert > 0 && $p->current_stock <= $p->low_stock_alert
-        )->count();
-        $outOfStockCount = $products->where('current_stock', '<=', 0)->count();
-        $totalItems      = $products->sum('current_stock');
+        $query = Product::query();
+        if ($orgId) {
+            $query->where('org_id', $orgId);
+        } else {
+            $query->where('user_id', $userId);
+        }
+        $summary = $query
+            ->selectRaw('
+                COUNT(*) as total_products,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as active_products,
+                COALESCE(SUM(current_stock * avg_cost), 0) as total_stock_value,
+                SUM(CASE WHEN low_stock_alert > 0 AND current_stock <= low_stock_alert THEN 1 ELSE 0 END) as low_stock_count,
+                SUM(CASE WHEN current_stock <= 0 THEN 1 ELSE 0 END) as out_of_stock_count,
+                COALESCE(SUM(current_stock), 0) as total_items
+            ', ['active'])
+            ->first();
 
         return [
-            'total_products'   => $totalProducts,
-            'active_products'  => $activeProducts,
-            'total_stock_value'=> round($totalStockValue, 2),
-            'low_stock_count'  => $lowStockCount,
-            'out_of_stock_count' => $outOfStockCount,
-            'total_items'      => $totalItems,
+            'total_products'     => (int) $summary->total_products,
+            'active_products'    => (int) $summary->active_products,
+            'total_stock_value'  => round((float) $summary->total_stock_value, 2),
+            'low_stock_count'    => (int) $summary->low_stock_count,
+            'out_of_stock_count' => (int) $summary->out_of_stock_count,
+            'total_items'        => (float) $summary->total_items,
         ];
     }
 
     // ══════════════════════════════════════════════════════
-    // LOW STOCK PRODUCTS
+    // LOW STOCK
     // ══════════════════════════════════════════════════════
 
-    public function getLowStockProducts(int $userId): mixed
+    public function getLowStockProducts(int $userId, ?int $orgId = null): mixed
     {
-        return Product::where('user_id', $userId)
-            ->where('status', 'active')
+        $query = Product::where('status', 'active')
             ->where('low_stock_alert', '>', 0)
-            ->whereColumn('current_stock', '<=', 'low_stock_alert')
-            ->with('category:id,name,color')
-            ->orderBy('current_stock')
-            ->get();
+            ->whereColumn('current_stock', '<=', 'low_stock_alert');
+
+        if ($orgId) {
+            $query->where('org_id', $orgId);
+        } else {
+            $query->where('user_id', $userId);
+        }
+
+        return $query->with('category:id,name,color')->orderBy('current_stock')->get();
     }
 
-    // ── Auto Product Create ───────────────────────────────
-    // PO item se naya product banao inventory mein
+    // ══════════════════════════════════════════════════════
+    // AUTO PRODUCT CREATE (PO se)
+    // ══════════════════════════════════════════════════════
 
-    private function autoCreateProduct($item, PurchaseOrder $po): Product
+    private function autoCreateProduct($item, PurchaseOrder $po, int $userId, ?int $orgId): Product
     {
-        $userId = auth()->id();
-
-        // SKU auto generate: PO-ITEMNAME-RANDOM
         $baseName = Str::upper(Str::slug(Str::limit($item->item_name, 8, ''), '-'));
         $sku      = 'PO-' . $baseName . '-' . strtoupper(Str::random(4));
 
-        // Duplicate SKU avoid karo
-        while (Product::where('user_id', $userId)->where('sku', $sku)->exists()) {
+        // Check uniqueness with user_id and org_id scope
+        while (Product::where('user_id', $userId)
+            ->where('org_id', $orgId)
+            ->where('sku', $sku)
+            ->exists()) {
             $sku = 'PO-' . $baseName . '-' . strtoupper(Str::random(4));
         }
 
-        // Selling price = purchase price * 1.2 (20% margin default)
-        // User baad mein edit kar sakta hai
         $purchasePrice = (float) $item->rate;
         $sellingPrice  = round($purchasePrice * 1.20, 2);
 
         $product = Product::create([
-            'user_id'        => $userId,
-            'name'           => $item->item_name,
-            'sku'            => $sku,
-            'product_category_id'    => $item->category_id ?? null,
-            'hsn_code'       => $item->hsn_code  ?? null,
-            'unit'           => $item->unit       ?? 'pcs',
-            'purchase_price' => $purchasePrice,
-            'selling_price'  => $sellingPrice,
-            'tax_rate'       => $item->tax_rate  ?? 18,
-            'current_stock'  => 0,
-            'opening_stock'  => (float) $item->qty,
-            'avg_cost'       => $purchasePrice,
-            'low_stock_alert'=> max(1, (int) ceil($item->qty * 0.2)),
-            'status'         => 'active',
-            'notes'          => "Auto created from PO #{$po->po_number} on " . now()->toDateString()
-                . " | Selling price aur low stock alert update karo",
+            'user_id'             => $userId,
+            'org_id'              => $orgId,
+            'name'                => $item->item_name,
+            'sku'                 => $sku,
+            'product_category_id' => $item->category_id ?? null,
+            'hsn_code'            => $item->hsn_code ?? null,
+            'unit'                => $item->unit     ?? 'pcs',
+            'purchase_price'      => $purchasePrice,
+            'selling_price'       => $sellingPrice,
+            'tax_rate'            => $item->tax_rate ?? 18,
+            'current_stock'       => 0,
+            'opening_stock'       => 0,  // ✅ Set to 0, will be updated when received
+            'avg_cost'            => $purchasePrice,
+            'low_stock_alert'     => max(1, (int) ceil($item->qty * 0.2)),
+            'status'              => 'active',
+            'notes'               => "Auto created from PO #{$po->po_number} on " . now()->toDateString(),
+        ]);
+
+        Log::info('Product auto-created from PO', [
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'user_id' => $userId,
+            'org_id' => $orgId,
+            'po_id' => $po->id,
         ]);
 
         return $product;

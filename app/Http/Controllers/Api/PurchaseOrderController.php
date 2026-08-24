@@ -18,7 +18,7 @@ class PurchaseOrderController extends Controller
     public function index(Request $request)
     {
         $orders = $this->poRepo->getAll($request->only([
-            'status', 'vendor_id', 'from_date', 'to_date', 'search'
+            'status', 'vendor_id', 'from_date', 'to_date', 'search', 'per_page'
         ]));
 
         return PurchaseOrderResource::collection($orders);

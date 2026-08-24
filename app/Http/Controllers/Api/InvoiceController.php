@@ -19,7 +19,7 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $filters = $request->only(['status', 'client_id', 'from_date', 'to_date', 'search']);
+        $filters = $request->only(['status', 'client_id', 'from_date', 'to_date', 'search', 'per_page']);
         $invoices = $this->invoiceRepo->getAll($filters);
         
         return InvoiceResource::collection($invoices);

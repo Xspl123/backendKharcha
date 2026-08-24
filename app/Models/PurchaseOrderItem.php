@@ -2,15 +2,16 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class PurchaseOrderItem extends Model
+class PurchaseOrderItem extends TenantModel
 {
     use HasFactory;
 
     protected $fillable = [
         'purchase_order_id',
+        'org_id',
+        'user_id',
         'item_name',
         'description',
         'hsn_code',
@@ -22,8 +23,10 @@ class PurchaseOrderItem extends Model
         'tax_amount',
         'product_id',
         'category_id',
-        'return_qty',
+        'returned_qty',
         'is_returned',
+        'original_item_id',
+        'is_return_item',
     ];
 
     protected $casts = [
@@ -32,6 +35,9 @@ class PurchaseOrderItem extends Model
         'amount'     => 'float',
         'tax_rate'   => 'float',
         'tax_amount' => 'float',
+        'returned_qty' => 'float',
+        'is_returned' => 'boolean',
+        'is_return_item' => 'boolean',
     ];
 
     protected $attributes = [
@@ -50,6 +56,21 @@ class PurchaseOrderItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function originalItem()
+    {
+        return $this->belongsTo(self::class, 'original_item_id');
+    }
+
+    public function returnItems()
+    {
+        return $this->hasMany(self::class, 'original_item_id');
+    }
+
+    public function getRemainingQtyAttribute(): float
+    {
+        return max(0, round((float) $this->qty - (float) ($this->returned_qty ?? 0), 2));
     }
 
     // ── Helpers ────────────────────────────────────────────

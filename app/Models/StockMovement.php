@@ -2,15 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class StockMovement extends Model
+class StockMovement extends TenantModel
 {
     use HasFactory;
 
     protected $fillable = [
         'user_id',
+        'org_id',
         'product_id',
         'type',
         'qty',

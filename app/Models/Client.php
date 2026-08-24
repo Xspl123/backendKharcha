@@ -2,10 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class Client extends Model
+class Client extends TenantModel
 {
     use HasFactory;
 
@@ -19,6 +18,7 @@ class Client extends Model
         'gstin',
         'opening_balance',
         'is_active',
+        'org_id'
     ];
 
     protected $casts = [
@@ -34,6 +34,11 @@ class Client extends Model
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    public function quotations()
+    {
+        return $this->hasMany(Quotation::class);
     }
 
     public function getTotalOutstandingAttribute()

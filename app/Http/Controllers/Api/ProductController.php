@@ -18,7 +18,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $products = $this->productRepo->getAll($request->only([
-            'search', 'status', 'category_id', 'low_stock', 'out_of_stock'
+            'search', 'status', 'category_id', 'low_stock', 'out_of_stock', 'per_page'
         ]));
         return ProductResource::collection($products);
     }

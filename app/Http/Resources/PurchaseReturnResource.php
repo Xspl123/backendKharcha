@@ -35,7 +35,16 @@ class PurchaseReturnResource extends JsonResource
                 'id'           => $this->originalPO->id,
                 'po_number'    => $this->originalPO->po_number,
                 'po_date'      => $this->originalPO->po_date,
+                'sub_total'    => (float) $this->originalPO->sub_total,
                 'total_amount' => (float) $this->originalPO->total_amount,
+                'paid_amount'  => (float) $this->originalPO->paid_amount,
+                'balance_amount' => (float) $this->originalPO->balance_amount,
+                'status'       => $this->originalPO->status,
+                'payment_summary' => [
+                    'total_amount' => (float) $this->originalPO->total_amount,
+                    'paid_amount' => (float) $this->originalPO->paid_amount,
+                    'balance_amount' => (float) $this->originalPO->balance_amount,
+                ],
             ] : null,
 
             'items' => PurchaseReturnItemResource::collection($this->whenLoaded('items')),

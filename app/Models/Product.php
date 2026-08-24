@@ -2,16 +2,16 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class Product extends Model
+class Product extends TenantModel
 {
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
+        'org_id',
         'product_category_id',
         'name',
         'sku',
@@ -84,6 +84,22 @@ class Product extends Model
     public function purchaseOrderItems()
     {
         return $this->hasMany(PurchaseOrderItem::class);
+    }
+
+    public function attributeValues()
+    {
+        return $this->hasMany(ProductAttribute::class);
+    }
+
+    public function leadProducts()
+    {
+        return $this->hasMany(LeadProduct::class);
+    }
+
+    public function attributes()
+    {
+        return $this->belongsToMany(Attribute::class, 'product_attributes')
+            ->withPivot('value');
     }
 
     // ── Stock Helpers ─────────────────────────────────────

@@ -73,7 +73,7 @@ return [
     |
     */
 
-    'connection' => env('SESSION_CONNECTION'),
+    'connection' => env('SESSION_CONNECTION', env('SESSION_DRIVER') === 'redis' ? 'session' : null),
 
     /*
     |--------------------------------------------------------------------------
@@ -101,7 +101,7 @@ return [
     |
     */
 
-    'store' => env('SESSION_STORE'),
+    'store' => env('SESSION_STORE', env('SESSION_DRIVER') === 'redis' ? 'redis' : null),
 
     /*
     |--------------------------------------------------------------------------

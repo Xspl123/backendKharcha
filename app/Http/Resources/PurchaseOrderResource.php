@@ -37,6 +37,7 @@ class PurchaseOrderResource extends JsonResource
             'can_approve'            => $this->canBeApproved(),
             'can_receive'            => $this->canBeReceived(),
             'can_cancel'             => $this->canBeCancelled(),
+            'can_return'             => (bool) $this->can_return,
 
             // Extra
             'notes'                  => $this->notes,

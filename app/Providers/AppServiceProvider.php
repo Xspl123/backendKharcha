@@ -39,6 +39,13 @@ use App\Repositories\Interfaces\SalesReturnRepositoryInterface;
 use App\Repositories\SalesReturnRepository;
 use App\Repositories\Interfaces\PurchaseReturnRepositoryInterface;
 use App\Repositories\PurchaseReturnRepository;
+use App\Repositories\Interfaces\LeadRepositoryInterface;
+use App\Repositories\LeadRepository;
+use App\Repositories\Interfaces\QuotationRepositoryInterface;
+use App\Repositories\QuotationRepository;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -66,8 +73,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(\App\Services\StockService::class);
         $this->app->bind(SalesReturnRepositoryInterface::class, SalesReturnRepository::class);
         $this->app->bind(PurchaseReturnRepositoryInterface::class, PurchaseReturnRepository::class);
+        $this->app->bind(LeadRepositoryInterface::class, LeadRepository::class);
+        $this->app->bind(QuotationRepositoryInterface::class, QuotationRepository::class);
 
-        
     }
 
     /**
@@ -75,6 +83,22 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        RateLimiter::for('auth', function (Request $request) {
+            $key = strtolower((string) $request->input('email')) . '|' . $request->ip();
+
+            return [
+                Limit::perMinute(5)->by($key),
+                Limit::perMinute(20)->by($request->ip()),
+            ];
+        });
+
+        RateLimiter::for('password-reset', function (Request $request) {
+            $key = strtolower((string) $request->input('email')) . '|' . $request->ip();
+
+            return [
+                Limit::perMinute(3)->by($key),
+                Limit::perMinute(10)->by($request->ip()),
+            ];
+        });
     }
 }
