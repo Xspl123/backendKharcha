@@ -268,6 +268,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('leads')->group(function () {
             Route::get('/summary',          [LeadController::class, 'summary']);
             Route::get('/pipeline',         [LeadController::class, 'pipeline']);
+            Route::get('/due-followups',    [LeadController::class, 'dueFollowUps']); // ← /leads/{id} SE PEHLE hona zaroori hai
             Route::get('/',                 [LeadController::class, 'index']);
             Route::post('/',                [LeadController::class, 'store']);
             Route::get('/{id}',             [LeadController::class, 'show']);

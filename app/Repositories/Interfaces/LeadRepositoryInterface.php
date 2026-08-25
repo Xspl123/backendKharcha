@@ -23,4 +23,5 @@ interface LeadRepositoryInterface
     public function linkInvoice(int $leadId, int $invoiceId): Lead;
     public function getSummary(): array;
     public function getPipelineStats(): array;
+    public function getDueFollowUps(): array;
 }

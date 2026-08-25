@@ -325,6 +325,44 @@ class LeadRepository implements LeadRepositoryInterface
         });
     }
 
+    /**
+     * Due-today + overdue open follow-ups, for the Navbar reminder bell.
+     * Lightweight by design — this is polled every few minutes app-wide, so
+     * it must never pull full lead payloads, only the fields the bell needs.
+     * NOT cached via ScopedCache: due/overdue status is time-sensitive
+     * (a follow-up becomes overdue purely by the clock ticking past
+     * midnight, with no write happening to bump the cache), so a cached
+     * value would go stale without any event to invalidate it.
+     */
+    public function getDueFollowUps(): array
+    {
+        $user = Auth::user();
+
+        $query = LeadFollowUp::query()
+            ->whereHas('lead', fn ($q) => $this->scopeQuery($q))
+            ->where('is_done', false)
+            ->whereDate('due_date', '<=', now())
+            ->with('lead:id,company_name');
+
+        // ✅ Sales agent — sirf apne assigned leads ke follow-ups
+        if ($user->hasRole('sales_agent')) {
+            $query->whereHas('lead', fn ($q) => $this->scopeQuery($q)->where('owner_id', $user->id));
+        }
+
+        return $query->orderBy('due_date')
+            ->get()
+            ->map(fn ($followUp) => [
+                'follow_up_id' => $followUp->id,
+                'lead_id'      => $followUp->lead_id,
+                'company_name' => $followUp->lead?->company_name,
+                'due_date'     => $followUp->due_date?->format('Y-m-d'),
+                'note'         => $followUp->note,
+                'is_overdue'   => $followUp->due_date?->lt(now()->startOfDay()) ?? false,
+            ])
+            ->values()
+            ->all();
+    }
+
     // ── Auto Client Create ────────────────────────────────
     private function autoCreateClient(Lead $lead): void
     {

@@ -44,6 +44,15 @@ class LeadController extends Controller
         return response()->json(['data' => $this->repo->getPipelineStats()]);
     }
 
+    // GET /api/leads/due-followups
+    // Lightweight, polled-frequently endpoint for the Navbar reminder bell —
+    // returns only due-today/overdue open follow-ups, not full lead payloads.
+    public function dueFollowUps(Request $request)
+    {
+        $this->checkPermission('leads.view', $request);
+        return response()->json(['data' => $this->repo->getDueFollowUps()]);
+    }
+
     // POST /api/leads
     public function store(StoreLeadRequest $request)
     {
