@@ -31,7 +31,7 @@ use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\QuotationController;
 use App\Http\Controllers\AIController;
-
+use App\Http\Controllers\Api\PublicLeadController;
 
 // ── Public Routes ─────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
@@ -42,6 +42,11 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middle
 Route::post('/password-reset', [AuthController::class, 'sendPasswordResetLink'])->middleware('throttle:password-reset');
 
 Route::post('/ask-ai', [AIController::class, 'askAI']);
+
+Route::middleware(['tenant.slug'])->prefix('public/leads')->group(function () {
+    Route::get('/{orgSlug}',  [PublicLeadController::class, 'show']);
+    Route::post('/{orgSlug}', [PublicLeadController::class, 'store'])->middleware('throttle:20,1');
+});
 
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -268,7 +273,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('leads')->group(function () {
             Route::get('/summary',          [LeadController::class, 'summary']);
             Route::get('/pipeline',         [LeadController::class, 'pipeline']);
-            Route::get('/due-followups',    [LeadController::class, 'dueFollowUps']); // ← /leads/{id} SE PEHLE hona zaroori hai
+            Route::get('/due-followups',    [LeadController::class, 'dueFollowUps']);
+            Route::get('/score-rules',      [LeadController::class, 'getScoreRules']);
+            Route::put('/score-rules',      [LeadController::class, 'saveScoreRules']);
             Route::get('/',                 [LeadController::class, 'index']);
             Route::post('/',                [LeadController::class, 'store']);
             Route::get('/{id}',             [LeadController::class, 'show']);

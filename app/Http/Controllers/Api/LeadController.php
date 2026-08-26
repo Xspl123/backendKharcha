@@ -14,6 +14,7 @@ use App\Http\Resources\LeadFollowUpResource;
 use App\Http\Resources\LeadProductResource;
 use App\Repositories\Interfaces\LeadRepositoryInterface;
 use Illuminate\Http\Request;
+use App\Models\LeadScoreRule;
 
 class LeadController extends Controller
 {
@@ -221,6 +222,18 @@ class LeadController extends Controller
             'data'    => new LeadFollowUpResource($followUp),
         ]);
     }
+
+    public function getScoreRules(Request $request)
+{
+    $this->checkPermission('leads.view', $request);
+    return response()->json(['data' => $this->repo->getScoreRules()]);
+}
+
+public function saveScoreRules(Request $request)
+{
+    $this->checkPermission('leads.edit', $request);
+    return response()->json(['data' => $this->repo->saveScoreRules($request->all())]);
+}
 
     public function linkPO(Request $request, int $id)
     {

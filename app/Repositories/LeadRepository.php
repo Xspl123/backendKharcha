@@ -14,6 +14,7 @@ use App\Repositories\Traits\OrgScope;
 use App\Repositories\Traits\PaginatesResults;
 use App\Repositories\Traits\ScopedCache;
 use Illuminate\Support\Facades\Auth;
+use App\Models\LeadScoreRule;
 
 class LeadRepository implements LeadRepositoryInterface
 {
@@ -404,5 +405,32 @@ class LeadRepository implements LeadRepositoryInterface
         } catch (\Exception $e) {
             \Log::warning('Auto client creation failed: ' . $e->getMessage());
         }
+    }
+
+    public function getScoreRules(): array
+    {
+        $user = Auth::user();
+
+        $rule = $this->usesOrgScope()
+            ? LeadScoreRule::where('org_id', $user->org_id)->first()
+            : LeadScoreRule::where('user_id', $user->id)->first();
+
+        return $rule?->rules ?? [];
+    }
+
+    public function saveScoreRules(array $rules): array
+    {
+        $user = Auth::user();
+
+        $rule = $this->usesOrgScope()
+            ? LeadScoreRule::updateOrCreate(['org_id' => $user->org_id], ['rules' => $rules])
+            : LeadScoreRule::updateOrCreate(['user_id' => $user->id], ['rules' => $rules]);
+
+        return $rule->rules;
+    }
+
+    private function usesOrgScope(): bool
+    {
+        return Auth::user()->hasOrg();
     }
 }

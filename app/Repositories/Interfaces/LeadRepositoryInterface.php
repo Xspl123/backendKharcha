@@ -24,4 +24,6 @@ interface LeadRepositoryInterface
     public function getSummary(): array;
     public function getPipelineStats(): array;
     public function getDueFollowUps(): array;
+    public function getScoreRules(): array;
+    public function saveScoreRules(array $rules): array;
 }

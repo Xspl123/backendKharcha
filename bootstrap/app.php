@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'org.set'      => \App\Http\Middleware\SetOrganisation::class, 
             'org.access'   => \App\Http\Middleware\EnsureOrgAccess::class,
             'tenant.org'   => \App\Http\Middleware\InitializeTenancyFromOrganisation::class,
+            'tenant.slug'  => \App\Http\Middleware\InitializeTenancyFromSlug::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
