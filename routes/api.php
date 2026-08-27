@@ -274,6 +274,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/summary',          [LeadController::class, 'summary']);
             Route::get('/pipeline',         [LeadController::class, 'pipeline']);
             Route::get('/due-followups',    [LeadController::class, 'dueFollowUps']);
+            Route::get('/new-web-leads',    [LeadController::class, 'newWebLeads']);
             Route::get('/score-rules',      [LeadController::class, 'getScoreRules']);
             Route::put('/score-rules',      [LeadController::class, 'saveScoreRules']);
             Route::get('/',                 [LeadController::class, 'index']);

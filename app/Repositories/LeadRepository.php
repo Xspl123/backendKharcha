@@ -364,6 +364,43 @@ class LeadRepository implements LeadRepositoryInterface
             ->all();
     }
 
+
+        /**
+     * Web leads nobody has actioned yet, for the Navbar reminder bell.
+     * "Unactioned" is defined as source=website AND status still at the
+     * default 'new' stage — no extra column needed: the moment a staff
+     * member changes the lead's status (even just to acknowledge it), it
+     * naturally drops off this list. Capped and most-recent-first so a
+     * long-unattended backlog doesn't flood the bell.
+     */
+    public function getNewWebLeads(): array
+    {
+        $user = Auth::user();
+ 
+        $query = $this->scopeQuery(Lead::query())
+            ->where('source', 'website')
+            ->where('status', 'new');
+ 
+        // ✅ Sales agent — sirf apne assigned leads
+        if ($user->hasRole('sales_agent')) {
+            $query->where('owner_id', $user->id);
+        }
+ 
+        return $query->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get(['id', 'company_name', 'contact_person', 'phone', 'email', 'created_at'])
+            ->map(fn ($lead) => [
+                'lead_id'        => $lead->id,
+                'company_name'   => $lead->company_name,
+                'contact_person' => $lead->contact_person,
+                'phone'          => $lead->phone,
+                'email'          => $lead->email,
+                'created_at'     => $lead->created_at?->toISOString(),
+            ])
+            ->values()
+            ->all();
+    }
+
     // ── Auto Client Create ────────────────────────────────
     private function autoCreateClient(Lead $lead): void
     {

@@ -54,6 +54,17 @@ class LeadController extends Controller
         return response()->json(['data' => $this->repo->getDueFollowUps()]);
     }
 
+       // GET /api/leads/new-web-leads
+    // Also lightweight/polled — powers the Navbar bell's "new web lead"
+    // alert so the team notices a public-form submission without having to
+    // check the Lead List manually.
+    public function newWebLeads(Request $request)
+    {
+        $this->checkPermission('leads.view', $request);
+        return response()->json(['data' => $this->repo->getNewWebLeads()]);
+    }
+ 
+
     // POST /api/leads
     public function store(StoreLeadRequest $request)
     {
