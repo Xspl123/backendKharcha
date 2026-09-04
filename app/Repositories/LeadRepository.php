@@ -401,6 +401,40 @@ class LeadRepository implements LeadRepositoryInterface
             ->all();
     }
 
+    /**
+     * Open follow-ups due within the next N days (default 7 = this week),
+     * for the Dashboard's "Upcoming Follow-ups" widget. Unlike
+     * getDueFollowUps() (today + overdue, for the Navbar bell), this looks
+     * forward across the whole week so nothing due Wednesday gets missed.
+     */
+    public function getUpcomingFollowUps(int $days = 7): array
+    {
+        $user = Auth::user();
+
+        $query = LeadFollowUp::query()
+            ->whereHas('lead', fn ($q) => $this->scopeQuery($q))
+            ->where('is_done', false)
+            ->whereDate('due_date', '>=', now())
+            ->whereDate('due_date', '<=', now()->addDays($days))
+            ->with('lead:id,company_name');
+
+        if ($user->hasRole('sales_agent')) {
+            $query->whereHas('lead', fn ($q) => $this->scopeQuery($q)->where('owner_id', $user->id));
+        }
+
+        return $query->orderBy('due_date')
+            ->get()
+            ->map(fn ($followUp) => [
+                'follow_up_id' => $followUp->id,
+                'lead_id'      => $followUp->lead_id,
+                'company_name' => $followUp->lead?->company_name,
+                'due_date'     => $followUp->due_date?->format('Y-m-d'),
+                'note'         => $followUp->note,
+            ])
+            ->values()
+            ->all();
+    }
+
     // ── Auto Client Create ────────────────────────────────
     private function autoCreateClient(Lead $lead): void
     {

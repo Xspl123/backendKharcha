@@ -54,8 +54,8 @@ class LeadController extends Controller
         return response()->json(['data' => $this->repo->getDueFollowUps()]);
     }
 
-       // GET /api/leads/new-web-leads
-    // Also lightweight/polled — powers the Navbar bell's "new web lead"
+     // GET /api/leads/new-web-leads
+     // Also lightweight/polled — powers the Navbar bell's "new web lead"
     // alert so the team notices a public-form submission without having to
     // check the Lead List manually.
     public function newWebLeads(Request $request)
@@ -63,6 +63,13 @@ class LeadController extends Controller
         $this->checkPermission('leads.view', $request);
         return response()->json(['data' => $this->repo->getNewWebLeads()]);
     }
+
+        // GET /api/leads/upcoming-followups?days=7
+        public function upcomingFollowUps(Request $request)
+        {
+            $this->checkPermission('leads.view', $request);
+            return response()->json(['data' => $this->repo->getUpcomingFollowUps((int) $request->query('days', 7))]);
+        }
  
 
     // POST /api/leads

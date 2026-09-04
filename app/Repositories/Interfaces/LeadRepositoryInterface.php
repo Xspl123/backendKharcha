@@ -27,5 +27,6 @@ interface LeadRepositoryInterface
     public function getScoreRules(): array;
     public function saveScoreRules(array $rules): array;
     public function getNewWebLeads(): array;
+    public function getUpcomingFollowUps(int $days = 7): array;
 
 }
