@@ -15,6 +15,7 @@ use App\Repositories\Traits\PaginatesResults;
 use App\Repositories\Traits\ScopedCache;
 use Illuminate\Support\Facades\Auth;
 use App\Models\LeadScoreRule;
+use App\Models\LeadCustomField;
 
 class LeadRepository implements LeadRepositoryInterface
 {
@@ -503,5 +504,51 @@ class LeadRepository implements LeadRepositoryInterface
     private function usesOrgScope(): bool
     {
         return Auth::user()->hasOrg();
+    }
+
+    private function scopedCustomFieldQuery()
+    {
+        $user = Auth::user();
+        return $this->usesOrgScope()
+            ? LeadCustomField::where('org_id', $user->org_id)
+            : LeadCustomField::where('user_id', $user->id);
+    }
+
+    public function getCustomFieldDefinitions(): array
+    {
+        return $this->scopedCustomFieldQuery()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get()
+            ->all();
+    }
+
+    public function createCustomFieldDefinition(array $data): LeadCustomField
+    {
+        $user = Auth::user();
+
+        $data['field_key'] = $data['field_key'] ?? \Illuminate\Support\Str::slug($data['label'], '_');
+
+        if ($this->usesOrgScope()) {
+            $data['org_id'] = $user->org_id;
+            $data['user_id'] = null;
+        } else {
+            $data['user_id'] = $user->id;
+            $data['org_id'] = null;
+        }
+
+        return LeadCustomField::create($data);
+    }
+
+    public function updateCustomFieldDefinition(int $id, array $data): LeadCustomField
+    {
+        $field = $this->scopedCustomFieldQuery()->findOrFail($id);
+        $field->update($data);
+        return $field->fresh();
+    }
+
+    public function deleteCustomFieldDefinition(int $id): bool
+    {
+        return (bool) $this->scopedCustomFieldQuery()->findOrFail($id)->delete();
     }
 }

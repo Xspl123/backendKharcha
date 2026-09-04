@@ -39,6 +39,7 @@ class UpdateLeadRequest extends FormRequest
             ],
             'expected_close_date' => 'nullable|date',
             'lost_reason'         => 'nullable|string|max:255',
+            'custom_fields'       => 'nullable|array',
         ];
     }
 }

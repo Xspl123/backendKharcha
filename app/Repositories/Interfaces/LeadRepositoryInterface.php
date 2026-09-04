@@ -3,6 +3,7 @@
 namespace App\Repositories\Interfaces;
 
 use App\Models\Lead;
+use App\Models\LeadCustomField;
 
 interface LeadRepositoryInterface
 {
@@ -28,5 +29,9 @@ interface LeadRepositoryInterface
     public function saveScoreRules(array $rules): array;
     public function getNewWebLeads(): array;
     public function getUpcomingFollowUps(int $days = 7): array;
+    public function getCustomFieldDefinitions(): array;
+    public function createCustomFieldDefinition(array $data): LeadCustomField;
+    public function updateCustomFieldDefinition(int $id, array $data): LeadCustomField;
+    public function deleteCustomFieldDefinition(int $id): bool;
 
 }

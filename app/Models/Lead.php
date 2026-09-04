@@ -14,12 +14,13 @@ class Lead extends TenantModel
         'website', 'country', 'city',
         'source', 'product_interest', 'budget', 'currency', 'notes',
         'status', 'lost_reason', 'expected_close_date',
-        'po_id', 'invoice_id','org_id'
+        'po_id', 'invoice_id','org_id', 'custom_fields'
     ];
 
     protected $casts = [
         'budget'              => 'decimal:2',
         'expected_close_date' => 'date',
+        'custom_fields'       => 'array',
     ];
 
     public function user()        { return $this->belongsTo(User::class); }

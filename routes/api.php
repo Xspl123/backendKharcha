@@ -278,6 +278,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/new-web-leads',    [LeadController::class, 'newWebLeads']);
             Route::get('/score-rules',      [LeadController::class, 'getScoreRules']);
             Route::put('/score-rules',      [LeadController::class, 'saveScoreRules']);
+            Route::get('/custom-fields',      [LeadController::class, 'getCustomFields']);
+            Route::post('/custom-fields',     [LeadController::class, 'createCustomField']);
+            Route::put('/custom-fields/{id}', [LeadController::class, 'updateCustomField']);
+            Route::delete('/custom-fields/{id}', [LeadController::class, 'deleteCustomField']);
             Route::get('/',                 [LeadController::class, 'index']);
             Route::post('/',                [LeadController::class, 'store']);
             Route::get('/{id}',             [LeadController::class, 'show']);

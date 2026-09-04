@@ -39,6 +39,7 @@ class StoreLeadRequest extends FormRequest
                 }),
             ],
             'expected_close_date' => 'nullable|date',
+            'custom_fields'       => 'nullable|array',
         ];
     }
 

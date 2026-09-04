@@ -22,6 +22,7 @@ class LeadResource extends JsonResource
             'budget'               => $this->budget,
             'currency'             => $this->currency,
             'notes'                => $this->notes,
+            'custom_fields'        => $this->custom_fields,
             'status'               => $this->status,
             'lost_reason'          => $this->lost_reason,
             'expected_close_date'  => $this->expected_close_date?->format('Y-m-d'),
