@@ -8,6 +8,8 @@ use App\Http\Requests\UpdateLeadRequest;
 use App\Http\Requests\UpdateLeadStatusRequest;
 use App\Http\Requests\StoreLeadActivityRequest;
 use App\Http\Requests\StoreLeadFollowUpRequest;
+use App\Http\Requests\StoreLeadCustomFieldRequest;
+use App\Http\Requests\UpdateLeadCustomFieldRequest;
 use App\Http\Resources\LeadResource;
 use App\Http\Resources\LeadActivityResource;
 use App\Http\Resources\LeadFollowUpResource;
@@ -283,6 +285,43 @@ public function saveScoreRules(Request $request)
             'message' => 'Invoice linked successfully.',
             'data' => new LeadResource($lead),
         ]);
+    }
+
+    // GET /api/leads/custom-fields
+    public function getCustomFields(Request $request)
+    {
+        $this->checkPermission('leads.view', $request);
+        return response()->json(['data' => $this->repo->getCustomFieldDefinitions()]);
+    }
+
+    // POST /api/leads/custom-fields
+    public function createCustomField(StoreLeadCustomFieldRequest $request)
+    {
+        $this->checkPermission('leads.edit', $request);
+        $field = $this->repo->createCustomFieldDefinition($request->validated());
+        return response()->json([
+            'message' => 'Custom field created successfully.',
+            'data'    => $field,
+        ], 201);
+    }
+
+    // PUT /api/leads/custom-fields/{id}
+    public function updateCustomField(UpdateLeadCustomFieldRequest $request, int $id)
+    {
+        $this->checkPermission('leads.edit', $request);
+        $field = $this->repo->updateCustomFieldDefinition($id, $request->validated());
+        return response()->json([
+            'message' => 'Custom field updated successfully.',
+            'data'    => $field,
+        ]);
+    }
+
+    // DELETE /api/leads/custom-fields/{id}
+    public function deleteCustomField(Request $request, int $id)
+    {
+        $this->checkPermission('leads.edit', $request);
+        $this->repo->deleteCustomFieldDefinition($id);
+        return response()->json(['message' => 'Custom field deleted successfully.']);
     }
 
     // ── Helper ────────────────────────────────────────────
