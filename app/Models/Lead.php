@@ -14,7 +14,12 @@ class Lead extends TenantModel
         'website', 'country', 'city',
         'source', 'product_interest', 'budget', 'currency', 'notes',
         'status', 'lost_reason', 'expected_close_date',
-        'po_id', 'invoice_id','org_id', 'custom_fields'
+        'po_id', 'invoice_id','org_id', 'custom_fields',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_term',
+        'utm_content',
     ];
 
     protected $casts = [
