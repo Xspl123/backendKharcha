@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\AttributeController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\LeadController;
+use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\OrganisationController;
 use App\Http\Controllers\Api\SuperAdminController;
@@ -297,6 +298,13 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{id}/quotation',  [QuotationController::class, 'storeFromLead'])->middleware('permission:quotations.create');
             Route::post('/{id}/link-po',      [LeadController::class, 'linkPO']);
             Route::post('/{id}/link-invoice', [LeadController::class, 'linkInvoice']);
+        });
+
+        // ── Web Push Notifications ────────────────────────
+        Route::prefix('push')->group(function () {
+            Route::get('/vapid-public-key', [PushSubscriptionController::class, 'vapidPublicKey']);
+            Route::post('/subscribe',       [PushSubscriptionController::class, 'subscribe']);
+            Route::post('/unsubscribe',     [PushSubscriptionController::class, 'unsubscribe']);
         });
         Route::patch('/follow-ups/{id}/done', [LeadController::class, 'markFollowUpDone']);
 

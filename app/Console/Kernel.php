@@ -11,6 +11,8 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('app:send-reminders')->dailyAt('09:00');
         $schedule->command('dashboard:warm-cache')->hourly()->withoutOverlapping();
+        $schedule->command('leads:push-followup-reminders')->everyThirtyMinutes()->withoutOverlapping();
+        $schedule->command('leads:push-new-web-leads')->everyTenMinutes()->withoutOverlapping();
     }
 
     protected function commands(): void
