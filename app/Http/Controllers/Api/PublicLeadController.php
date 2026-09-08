@@ -58,6 +58,11 @@ class PublicLeadController extends Controller
             'email'            => 'nullable|email|max:255',
             'product_interest' => 'nullable|string|max:255',
             'notes'            => 'nullable|string|max:2000',
+            'utm_source'       => 'nullable|string|max:255',
+            'utm_medium'       => 'nullable|string|max:255',
+            'utm_campaign'     => 'nullable|string|max:255',
+            'utm_term'         => 'nullable|string|max:255',
+            'utm_content'      => 'nullable|string|max:255',
         ]);
 
         if (empty($data['phone']) && empty($data['email'])) {
