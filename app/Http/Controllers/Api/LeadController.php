@@ -10,6 +10,8 @@ use App\Http\Requests\StoreLeadActivityRequest;
 use App\Http\Requests\StoreLeadFollowUpRequest;
 use App\Http\Requests\StoreLeadCustomFieldRequest;
 use App\Http\Requests\UpdateLeadCustomFieldRequest;
+use App\Http\Requests\StoreLeadWorkflowRuleRequest;
+use App\Http\Requests\UpdateLeadWorkflowRuleRequest;
 use App\Http\Resources\LeadResource;
 use App\Http\Resources\LeadActivityResource;
 use App\Http\Resources\LeadFollowUpResource;
@@ -322,6 +324,43 @@ public function saveScoreRules(Request $request)
         $this->checkPermission('leads.edit', $request);
         $this->repo->deleteCustomFieldDefinition($id);
         return response()->json(['message' => 'Custom field deleted successfully.']);
+    }
+
+    // GET /api/leads/workflow-rules
+    public function getWorkflowRules(Request $request)
+    {
+        $this->checkPermission('leads.view', $request);
+        return response()->json(['data' => $this->repo->getWorkflowRules()]);
+    }
+
+    // POST /api/leads/workflow-rules
+    public function createWorkflowRule(StoreLeadWorkflowRuleRequest $request)
+    {
+        $this->checkPermission('leads.edit', $request);
+        $rule = $this->repo->createWorkflowRule($request->validated());
+        return response()->json([
+            'message' => 'Workflow rule created successfully.',
+            'data'    => $rule,
+        ], 201);
+    }
+
+    // PUT /api/leads/workflow-rules/{id}
+    public function updateWorkflowRule(UpdateLeadWorkflowRuleRequest $request, int $id)
+    {
+        $this->checkPermission('leads.edit', $request);
+        $rule = $this->repo->updateWorkflowRule($id, $request->validated());
+        return response()->json([
+            'message' => 'Workflow rule updated successfully.',
+            'data'    => $rule,
+        ]);
+    }
+
+    // DELETE /api/leads/workflow-rules/{id}
+    public function deleteWorkflowRule(Request $request, int $id)
+    {
+        $this->checkPermission('leads.edit', $request);
+        $this->repo->deleteWorkflowRule($id);
+        return response()->json(['message' => 'Workflow rule deleted successfully.']);
     }
 
     // ── Helper ────────────────────────────────────────────

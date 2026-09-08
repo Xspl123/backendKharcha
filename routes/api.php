@@ -283,6 +283,11 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/custom-fields',     [LeadController::class, 'createCustomField']);
             Route::put('/custom-fields/{id}', [LeadController::class, 'updateCustomField']);
             Route::delete('/custom-fields/{id}', [LeadController::class, 'deleteCustomField']);
+
+            Route::get('/workflow-rules',      [LeadController::class, 'getWorkflowRules']);
+            Route::post('/workflow-rules',     [LeadController::class, 'createWorkflowRule']);
+            Route::put('/workflow-rules/{id}', [LeadController::class, 'updateWorkflowRule']);
+            Route::delete('/workflow-rules/{id}', [LeadController::class, 'deleteWorkflowRule']);
             Route::get('/',                 [LeadController::class, 'index']);
             Route::post('/',                [LeadController::class, 'store']);
             Route::get('/{id}',             [LeadController::class, 'show']);

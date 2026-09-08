@@ -16,10 +16,15 @@ use App\Repositories\Traits\ScopedCache;
 use Illuminate\Support\Facades\Auth;
 use App\Models\LeadScoreRule;
 use App\Models\LeadCustomField;
+use App\Models\LeadWorkflowRule;
+use App\Services\PushNotificationService;
 
 class LeadRepository implements LeadRepositoryInterface
 {
     use OrgScope, PaginatesResults, ScopedCache;
+
+    public function __construct(private PushNotificationService $push) {}
+
 
     public function getAll(array $filters = [])
     {
@@ -93,9 +98,15 @@ class LeadRepository implements LeadRepositoryInterface
 
     public function update(int $id, array $data): Lead
     {
-        $lead = $this->scopeQuery(Lead::query())->findOrFail($id);
+        $lead      = $this->scopeQuery(Lead::query())->findOrFail($id);
+        $oldStatus = $lead->status;
         $lead->update($data);
         $this->bumpScopedCache(['leads', 'campaigns']);
+
+        if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
+            $this->applyWorkflowRules($lead, $data['status']);
+        }
+
         return $lead->fresh(['owner:id,name', 'client:id,company_name']);
     }
 
@@ -124,6 +135,8 @@ class LeadRepository implements LeadRepositoryInterface
         if ($status === 'closed_won' && !$lead->client_id) {
             $this->autoCreateClient($lead);
         }
+
+        $this->applyWorkflowRules($lead, $status);
 
         $this->bumpScopedCache(['leads', 'campaigns', 'clients']);
 
@@ -550,5 +563,74 @@ class LeadRepository implements LeadRepositoryInterface
     public function deleteCustomFieldDefinition(int $id): bool
     {
         return (bool) $this->scopedCustomFieldQuery()->findOrFail($id)->delete();
+    }
+
+    // ── Workflow Rules ───────────────────────────────────
+    private function scopedWorkflowRuleQuery()
+    {
+        $user = Auth::user();
+        return $this->usesOrgScope()
+            ? LeadWorkflowRule::where('org_id', $user->org_id)
+            : LeadWorkflowRule::where('user_id', $user->id);
+    }
+
+    public function getWorkflowRules(): array
+    {
+        return $this->scopedWorkflowRuleQuery()->orderBy('id')->get()->all();
+    }
+
+    public function createWorkflowRule(array $data): LeadWorkflowRule
+    {
+        $user = Auth::user();
+
+        if ($this->usesOrgScope()) {
+            $data['org_id'] = $user->org_id;
+            $data['user_id'] = null;
+        } else {
+            $data['user_id'] = $user->id;
+            $data['org_id'] = null;
+        }
+
+        return LeadWorkflowRule::create($data);
+    }
+
+    public function updateWorkflowRule(int $id, array $data): LeadWorkflowRule
+    {
+        $rule = $this->scopedWorkflowRuleQuery()->findOrFail($id);
+        $rule->update($data);
+        return $rule->fresh();
+    }
+
+    public function deleteWorkflowRule(int $id): bool
+    {
+        return (bool) $this->scopedWorkflowRuleQuery()->findOrFail($id)->delete();
+    }
+
+    // Fires from update()/updateStatus() whenever a lead's status actually
+    // changes. v1 only supports 'status_change' triggers + 'notify_owner'
+    // actions (a push to the lead's current owner via the same
+    // PushNotificationService the follow-up/new-lead reminders use), but
+    // trigger_type/action_type are stored as free strings so new kinds can
+    // be added later without touching the schema.
+    private function applyWorkflowRules(Lead $lead, string $newStatus): void
+    {
+        if (!$lead->owner_id) return;
+
+        $rules = $this->scopedWorkflowRuleQuery()
+            ->where('is_active', true)
+            ->where('trigger_type', 'status_change')
+            ->where('trigger_status', $newStatus)
+            ->get();
+
+        foreach ($rules as $rule) {
+            if ($rule->action_type !== 'notify_owner') continue;
+
+            $this->push->sendToUser($lead->owner_id, [
+                'title' => $rule->name,
+                'body'  => $rule->action_message
+                    ?: "{$lead->company_name} is now \"{$newStatus}\"",
+                'data'  => ['leadId' => $lead->id],
+            ]);
+        }
     }
 }

@@ -4,6 +4,7 @@ namespace App\Repositories\Interfaces;
 
 use App\Models\Lead;
 use App\Models\LeadCustomField;
+use App\Models\LeadWorkflowRule;
 
 interface LeadRepositoryInterface
 {
@@ -33,5 +34,9 @@ interface LeadRepositoryInterface
     public function createCustomFieldDefinition(array $data): LeadCustomField;
     public function updateCustomFieldDefinition(int $id, array $data): LeadCustomField;
     public function deleteCustomFieldDefinition(int $id): bool;
+    public function getWorkflowRules(): array;
+    public function createWorkflowRule(array $data): LeadWorkflowRule;
+    public function updateWorkflowRule(int $id, array $data): LeadWorkflowRule;
+    public function deleteWorkflowRule(int $id): bool;
 
 }
