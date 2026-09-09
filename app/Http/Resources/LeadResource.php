@@ -18,6 +18,11 @@ class LeadResource extends JsonResource
             'country'              => $this->country,
             'city'                 => $this->city,
             'source'               => $this->source,
+            // Only present right after creation, and only when at least
+            // one match was found — see LeadRepository::create(). Not a
+            // stored/DB field, so it's absent (null) on every normal
+            // index/show read.
+            'possible_duplicates'  => $this->possible_duplicates ?? null,
             'utm_source'           => $this->utm_source,
             'utm_medium'           => $this->utm_medium,
             'utm_campaign'         => $this->utm_campaign,

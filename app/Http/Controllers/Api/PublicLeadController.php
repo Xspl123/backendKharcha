@@ -5,11 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
 use App\Models\LeadActivity;
+use App\Repositories\Interfaces\LeadRepositoryInterface;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 
 class PublicLeadController extends Controller
 {
+    public function __construct(
+        private LeadRepositoryInterface $repo,
+        private NotificationService $push,
+    ) {}
+
     // GET /api/public/leads/{orgSlug}
     // Minimal, non-sensitive org info so the form can show a company name —
     // nothing else about the org (billing, members, settings) is exposed.
@@ -88,6 +95,28 @@ class PublicLeadController extends Controller
             'type'    => 'note',
             'note'    => 'Lead submitted via public web form.',
         ]);
+
+        // Automatic duplicate detection — a web-form lead has no one
+        // reviewing it before it lands in the CRM (unlike the Add Lead
+        // form, where the person creating it sees an inline warning
+        // immediately), so the org owner gets pushed a heads-up right
+        // away instead of only discovering it later via the Leads list's
+        // duplicate banner.
+        $duplicates = $this->repo->findDuplicatesForOrg($lead, $org->id);
+        if (!empty($duplicates)) {
+            $names = collect($duplicates)->pluck('company_name')->implode(', ');
+            LeadActivity::create([
+                'lead_id' => $lead->id,
+                'user_id' => $org->owner_id,
+                'type'    => 'note',
+                'note'    => "Possible duplicate detected — matches: {$names}",
+            ]);
+            $this->push->sendToUser($org->owner_id, [
+                'title' => 'Possible Duplicate Lead',
+                'body'  => "{$lead->company_name} matches: {$names}",
+                'data'  => ['leadId' => $lead->id],
+            ]);
+        }
 
         return response()->json([
             'message' => 'Thank you! We will get back to you soon.',

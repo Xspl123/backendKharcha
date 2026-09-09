@@ -6,7 +6,7 @@ use App\Models\Company;
 use App\Models\Organisation;
 use App\Models\User;
 use App\Repositories\Interfaces\LeadRepositoryInterface;
-use App\Services\PushNotificationService;
+use App\Services\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -17,7 +17,7 @@ class SendNewWebLeadPushNotifications extends Command
 
     protected $description = 'Push a browser notification for each new, unactioned web-form lead (per tenant, per user) — fires once per lead, not repeated';
 
-    public function handle(LeadRepositoryInterface $leads, PushNotificationService $push): int
+    public function handle(LeadRepositoryInterface $leads, NotificationService $push): int
     {
         $orgs = Organisation::with('tenant')
             ->where('is_active', true)

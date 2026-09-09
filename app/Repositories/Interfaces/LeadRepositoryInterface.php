@@ -38,5 +38,6 @@ interface LeadRepositoryInterface
     public function createWorkflowRule(array $data): LeadWorkflowRule;
     public function updateWorkflowRule(int $id, array $data): LeadWorkflowRule;
     public function deleteWorkflowRule(int $id): bool;
+    public function findDuplicatesForOrg(Lead $lead, int $orgId): array;
 
 }

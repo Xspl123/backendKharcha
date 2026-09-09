@@ -17,13 +17,13 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\LeadScoreRule;
 use App\Models\LeadCustomField;
 use App\Models\LeadWorkflowRule;
-use App\Services\PushNotificationService;
+use App\Services\NotificationService;
 
 class LeadRepository implements LeadRepositoryInterface
 {
     use OrgScope, PaginatesResults, ScopedCache;
 
-    public function __construct(private PushNotificationService $push) {}
+    public function __construct(private NotificationService $push) {}
 
 
     public function getAll(array $filters = [])
@@ -91,9 +91,75 @@ class LeadRepository implements LeadRepositoryInterface
             'note'    => 'Lead created',
         ]);
 
+        $duplicates = $this->findDuplicateLeads($lead, $lead->org_id);
+        if (!empty($duplicates)) {
+            $names = collect($duplicates)->pluck('company_name')->implode(', ');
+            LeadActivity::create([
+                'lead_id' => $lead->id,
+                'user_id' => Auth::id(),
+                'type'    => 'note',
+                'note'    => "Possible duplicate detected — matches: {$names}",
+            ]);
+        }
+
         $this->bumpScopedCache(['leads', 'campaigns']);
 
-        return $lead->fresh(['owner:id,name']);
+        $fresh = $lead->fresh(['owner:id,name']);
+        // Transient, non-persisted attribute — not a DB column. Only set
+        // when duplicates were found, so LeadResource can surface it in
+        // the create-response for an immediate inline warning, without
+        // this ever being part of the lead's normal stored/read data.
+        if (!empty($duplicates)) {
+            $fresh->setAttribute('possible_duplicates', $duplicates);
+        }
+
+        return $fresh;
+    }
+
+    // Matches by normalized phone, normalized email, or normalized company
+    // name — same normalization LeadList.jsx's existing client-side
+    // "duplicate signal" banner already uses (see normalizePhone /
+    // normalizeComparable there), so this stays consistent with what the
+    // UI already surfaces; it just now also fires the moment a lead is
+    // created (both the authenticated Add Lead form and the public web
+    // form) instead of only being noticed later when someone browses the
+    // Leads list.
+    private function findDuplicateLeads(Lead $lead, ?int $orgId): array
+    {
+        if (!$orgId) return [];
+
+        $normalizePhone = fn($v) => preg_replace('/\D/', '', (string) $v);
+        $normalize = fn($v) => strtolower(trim((string) $v));
+
+        $phone = $normalizePhone($lead->phone);
+        $email = $normalize($lead->email);
+        $company = $normalize($lead->company_name);
+
+        if ($phone === '' && $email === '' && $company === '') return [];
+
+        return Lead::where('org_id', $orgId)
+            ->where('id', '!=', $lead->id)
+            ->get(['id', 'company_name', 'phone', 'email'])
+            ->filter(function ($candidate) use ($phone, $email, $company, $normalizePhone, $normalize) {
+                $cPhone = $normalizePhone($candidate->phone);
+                $cEmail = $normalize($candidate->email);
+                $cCompany = $normalize($candidate->company_name);
+                return ($phone !== '' && strlen($phone) >= 7 && $cPhone === $phone)
+                    || ($email !== '' && $cEmail === $email)
+                    || ($company !== '' && $cCompany === $company);
+            })
+            ->take(5)
+            ->values()
+            ->map(fn($c) => ['id' => $c->id, 'company_name' => $c->company_name])
+            ->all();
+    }
+
+    // Public wrapper so PublicLeadController (which has no Auth context and
+    // doesn't otherwise touch the repository) can reuse the exact same
+    // matching logic for web-form submissions.
+    public function findDuplicatesForOrg(Lead $lead, int $orgId): array
+    {
+        return $this->findDuplicateLeads($lead, $orgId);
     }
 
     public function update(int $id, array $data): Lead
@@ -609,7 +675,7 @@ class LeadRepository implements LeadRepositoryInterface
     // Fires from update()/updateStatus() whenever a lead's status actually
     // changes. v1 only supports 'status_change' triggers + 'notify_owner'
     // actions (a push to the lead's current owner via the same
-    // PushNotificationService the follow-up/new-lead reminders use), but
+    // NotificationService (push + email) the follow-up/new-lead reminders use), but
     // trigger_type/action_type are stored as free strings so new kinds can
     // be added later without touching the schema.
     private function applyWorkflowRules(Lead $lead, string $newStatus): void
