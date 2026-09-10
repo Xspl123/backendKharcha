@@ -295,6 +295,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/{id}',          [LeadController::class, 'destroy']);
             Route::patch('/{id}/status',    [LeadController::class, 'updateStatus']);
             Route::post('/{id}/activities', [LeadController::class, 'addActivity']);
+            Route::post('/{id}/send-email',  [LeadController::class, 'sendLeadEmail']);
             Route::post('/{id}/follow-ups', [LeadController::class, 'addFollowUp']);
             Route::get('/{id}/products',    [LeadController::class, 'products']);
             Route::post('/{id}/products',   [LeadController::class, 'addProduct']);

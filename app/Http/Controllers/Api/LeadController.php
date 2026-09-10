@@ -12,6 +12,9 @@ use App\Http\Requests\StoreLeadCustomFieldRequest;
 use App\Http\Requests\UpdateLeadCustomFieldRequest;
 use App\Http\Requests\StoreLeadWorkflowRuleRequest;
 use App\Http\Requests\UpdateLeadWorkflowRuleRequest;
+use App\Http\Requests\SendLeadEmailRequest;
+use App\Mail\LeadComposeMail;
+use Illuminate\Support\Facades\Mail;
 use App\Http\Resources\LeadResource;
 use App\Http\Resources\LeadActivityResource;
 use App\Http\Resources\LeadFollowUpResource;
@@ -361,6 +364,40 @@ public function saveScoreRules(Request $request)
         $this->checkPermission('leads.edit', $request);
         $this->repo->deleteWorkflowRule($id);
         return response()->json(['message' => 'Workflow rule deleted successfully.']);
+    }
+
+    // POST /api/leads/{id}/send-email
+    // A user-composed email (not a system notification) sent to the lead
+    // directly from the CRM — distinct from NotificationService, which
+    // only sends automated alerts to internal users, never to leads.
+    public function sendLeadEmail(SendLeadEmailRequest $request, int $id)
+    {
+        $this->checkPermission('leads.edit', $request);
+        $lead = $this->repo->findById($id);
+
+        $to = $request->validated('to') ?: $lead->email;
+        if (!$to) {
+            return response()->json(['message' => 'Lead ka email address nahi hai — "to" field bharein.'], 422);
+        }
+
+        $sender = $request->user();
+        $mail = Mail::to($to);
+        if ($request->validated('cc')) {
+            $mail->cc($request->validated('cc'));
+        }
+        if ($sender->email) {
+            $mail->send((new LeadComposeMail($sender->name, $request->validated('subject'), $request->validated('body')))
+                ->replyTo($sender->email, $sender->name));
+        } else {
+            $mail->send(new LeadComposeMail($sender->name, $request->validated('subject'), $request->validated('body')));
+        }
+
+        $this->repo->addActivity($id, [
+            'type' => 'email',
+            'note' => "Email sent to {$to}: \"{$request->validated('subject')}\"",
+        ]);
+
+        return response()->json(['message' => 'Email bhej diya gaya.']);
     }
 
     // ── Helper ────────────────────────────────────────────
