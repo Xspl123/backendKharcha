@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Client;
 use App\Models\Lead;
+use App\Models\LeadActivity;
 use App\Models\Quotation;
 use App\Repositories\Interfaces\QuotationRepositoryInterface;
 use App\Repositories\Traits\OrgScope;
@@ -94,8 +95,14 @@ class QuotationRepository implements QuotationRepositoryInterface
 
             if ($quotation->lead_id) {
                 $lead = $this->scopeQuery(Lead::query())->find($quotation->lead_id);
-                if ($lead && in_array($lead->status, ['new', 'attempted', 'contacted', 'qualified', 'requirement_discussion'], true)) {
+                if ($lead && in_array($lead->status, ['new', 'contact_attempted', 'connected', 'requirement_discussion'], true)) {
                     $lead->update(['status' => 'quotation_sent']);
+                    LeadActivity::create([
+                        'lead_id' => $lead->id,
+                        'user_id' => \Illuminate\Support\Facades\Auth::id(),
+                        'type'    => 'status_change',
+                        'note'    => "Status auto-updated to \"Quotation Sent\" — quotation {$quotation->quotation_no} created.",
+                    ]);
                 }
             }
 

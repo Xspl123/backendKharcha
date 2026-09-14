@@ -13,6 +13,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('dashboard:warm-cache')->hourly()->withoutOverlapping();
         $schedule->command('leads:push-followup-reminders')->everyThirtyMinutes()->withoutOverlapping();
         $schedule->command('leads:push-new-web-leads')->everyTenMinutes()->withoutOverlapping();
+        $schedule->command('quotations:check-expiry')->dailyAt('09:30')->withoutOverlapping();
     }
 
     protected function commands(): void

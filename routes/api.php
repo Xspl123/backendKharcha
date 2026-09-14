@@ -338,6 +338,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/{id}', [QuotationController::class, 'update'])->middleware('permission:quotations.edit');
             Route::patch('/{id}/status', [QuotationController::class, 'updateStatus'])->middleware('permission:quotations.edit');
             Route::delete('/{id}', [QuotationController::class, 'destroy'])->middleware('permission:quotations.delete');
+            Route::post('/{id}/send-email', [QuotationController::class, 'sendEmail'])->middleware('permission:quotations.edit');
         });
 
     });
