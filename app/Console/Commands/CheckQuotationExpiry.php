@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\LeadActivity;
 use App\Models\Organisation;
 use App\Models\Quotation;
+use App\Repositories\Interfaces\QuotationRepositoryInterface;
 use App\Services\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +17,7 @@ class CheckQuotationExpiry extends Command
 
     protected $description = 'Reminds the owner ~2 days before a sent quotation expires, and auto-marks it Expired once the expiry date has passed';
 
-    public function handle(NotificationService $notify): int
+    public function handle(NotificationService $notify, QuotationRepositoryInterface $quotations): int
     {
         $orgs = Organisation::with('tenant')
             ->where('is_active', true)
@@ -75,6 +76,7 @@ class CheckQuotationExpiry extends Command
 
                 foreach ($overdue as $quotation) {
                     $quotation->update(['status' => 'expired']);
+                    $quotations->applyQuotationWorkflowRules($quotation, 'expired'); // any admin-defined rule for this status, in addition to the baseline notice below
 
                     if ($quotation->lead_id) {
                         LeadActivity::create([

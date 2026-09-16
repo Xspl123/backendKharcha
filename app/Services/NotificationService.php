@@ -6,6 +6,7 @@ use App\Mail\LeadNotificationMail;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use App\Jobs\SendWorkflowEmailJob;
 
 class NotificationService
 {
@@ -32,19 +33,16 @@ class NotificationService
             return;
         }
 
-        try {
-            Mail::to($user->email)->send(
-                new LeadNotificationMail(
-                    $user->name,
-                    $payload['title'] ?? 'Notification',
-                    $payload['body'] ?? '',
-                    $payload['data']['leadId'] ?? null
-                )
-            );
+            SendWorkflowEmailJob::dispatch(
+            $user->id,
+            $user->name,
+            $user->email,
+            $payload['title'] ?? 'Notification',
+            $payload['body'] ?? '',
+            $payload['data']['leadId'] ?? null
+        );
 
-            Log::info("Lead notification email sent successfully to {$user->email}");
-        } catch (\Throwable $e) {
-            Log::error("Lead notification email failed for {$user->email}: " . $e->getMessage());
-        }
+        Log::info("Workflow email queued for {$user->email}");
     }
+
 }

@@ -4,17 +4,17 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreLeadWorkflowRuleRequest extends FormRequest
+class UpdateLeadWorkflowRuleRequest extends FormRequest
 {
     public function authorize(): bool { return true; }
 
     public function rules(): array
     {
         return [
-            'name'            => 'required|string|max:255',
+            'name'            => 'sometimes|required|string|max:255',
             'trigger_type'    => 'nullable|in:status_change,quotation_status_change',
             'trigger_status'  => [
-                'required', 'string',
+                'sometimes', 'required', 'string',
                 function ($attribute, $value, $fail) {
                     $type = $this->input('trigger_type', 'status_change');
                     $leadStatuses = ['new','contact_attempted','connected','requirement_discussion','quotation_sent','negotiation','positive_response','po_received','invoice_generated','closed_won','closed_lost'];
@@ -25,7 +25,7 @@ class StoreLeadWorkflowRuleRequest extends FormRequest
                     }
                 },
             ],
-            'action_type'     => 'required|in:notify_owner',
+            'action_type'     => 'sometimes|required|in:notify_owner',
             'action_message'  => 'nullable|string|max:255',
             'is_active'       => 'nullable|boolean',
         ];

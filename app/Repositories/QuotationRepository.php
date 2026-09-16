@@ -5,16 +5,20 @@ namespace App\Repositories;
 use App\Models\Client;
 use App\Models\Lead;
 use App\Models\LeadActivity;
+use App\Models\LeadWorkflowRule;
 use App\Models\Quotation;
 use App\Repositories\Interfaces\QuotationRepositoryInterface;
 use App\Repositories\Traits\OrgScope;
 use App\Repositories\Traits\PaginatesResults;
 use App\Repositories\Traits\ScopedCache;
+use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 
 class QuotationRepository implements QuotationRepositoryInterface
 {
     use OrgScope, PaginatesResults, ScopedCache;
+
+    public function __construct(private NotificationService $notify) {}
 
     public function getAll(array $filters): mixed
     {
@@ -92,6 +96,8 @@ class QuotationRepository implements QuotationRepositoryInterface
 
             $quotation->load('items');
             $quotation->calculateTotals();
+            $quotation->load(['lead:id,company_name,owner_id', 'client:id,company_name,user_id']);
+            $this->applyQuotationWorkflowRules($quotation, $quotation->status);
 
             if ($quotation->lead_id) {
                 $lead = $this->scopeQuery(Lead::query())->find($quotation->lead_id);
@@ -171,7 +177,41 @@ class QuotationRepository implements QuotationRepositoryInterface
     {
         $quotation = $this->scopeQuery(Quotation::query())->findOrFail($id);
         $quotation->update(['status' => $status]);
-        return $quotation->fresh(['lead', 'client', 'items.product']);
+        $quotation = $quotation->fresh(['lead', 'client', 'items.product']);
+        $this->applyQuotationWorkflowRules($quotation, $status);
+        return $quotation;
+    }
+
+    // Mirrors LeadRepository::applyWorkflowRules(), but for
+    // trigger_type='quotation_status_change' rules. Deliberately does NOT
+    // use scopeQuery()/Auth::user() — it's called both from authenticated
+    // HTTP requests (manual status change, email-triggered auto-advance)
+    // and from the unauthenticated CheckQuotationExpiry scheduled command,
+    // so it scopes purely off the quotation's own org_id/user_id instead.
+    public function applyQuotationWorkflowRules(Quotation $quotation, string $newStatus): void
+    {
+        $notifyUserId = $quotation->lead?->owner_id ?? $quotation->client?->user_id;
+        if (!$notifyUserId) return;
+
+        $rules = LeadWorkflowRule::where('trigger_type', 'quotation_status_change')
+            ->where('trigger_status', $newStatus)
+            ->where('is_active', true)
+            ->where(function ($q) use ($quotation) {
+                $q->where('org_id', $quotation->org_id)->orWhere('user_id', $quotation->user_id);
+            })
+            ->get();
+
+        foreach ($rules as $rule) {
+            if ($rule->action_type !== 'notify_owner') continue;
+
+            $partyName = $quotation->lead?->company_name ?? $quotation->client?->company_name ?? 'the customer';
+            $this->notify->sendToUser($notifyUserId, [
+                'title' => $rule->name,
+                'body'  => $rule->action_message
+                    ?: "Quotation {$quotation->quotation_no} for {$partyName} is now \"{$newStatus}\"",
+                'data'  => ['leadId' => $quotation->lead_id],
+            ]);
+        }
     }
 
     private function generateQuotationNumber(): string
