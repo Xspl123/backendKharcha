@@ -118,6 +118,85 @@ class QuotationRepository implements QuotationRepositoryInterface
         });
     }
 
+    // Creates a NEW quotation row (the next version) instead of touching
+    // the original — e.g. after a price negotiation, QT-...0005 (V1) stays
+    // exactly as sent, and QT-...0005-V2 is the revised one. The original
+    // is left completely untouched (status, items, everything).
+    public function reviseQuotation(int $id, array $data): mixed
+    {
+        return DB::transaction(function () use ($id, $data) {
+            $original = $this->scopeQuery(Quotation::query())->findOrFail($id);
+
+            // Walk to the root of the version chain so the next version
+            // number is always correct, regardless of which existing
+            // version the "Revise" button was clicked from.
+            $rootId = $original->parent_quotation_id ?? $original->id;
+            $maxVersion = $this->scopeQuery(Quotation::query())
+                ->where(fn ($q) => $q->where('id', $rootId)->orWhere('parent_quotation_id', $rootId))
+                ->max('version') ?? $original->version;
+            $nextVersion = max($maxVersion, $original->version) + 1;
+
+            // Strip any existing "-VN" suffix so a revision-of-a-revision
+            // reads "...-0005-V3", never "...-0005-V1-V2-V3".
+            $baseNo = preg_replace('/-V\d+$/', '', $original->quotation_no);
+            $newQuotationNo = "{$baseNo}-V{$nextVersion}";
+
+            $revised = Quotation::create([
+                'user_id' => $original->user_id,
+                'org_id' => $original->org_id,
+                'lead_id' => $original->lead_id,
+                'client_id' => $original->client_id,
+                'quotation_no' => $newQuotationNo,
+                'version' => $nextVersion,
+                'parent_quotation_id' => $original->id,
+                'quotation_date' => $data['quotation_date'] ?? now()->toDateString(),
+                'expiry_date' => $data['expiry_date'] ?? null,
+                'status' => 'draft',
+                'notes' => $data['notes'] ?? $original->notes,
+                'terms_conditions' => $data['terms_conditions'] ?? $original->terms_conditions,
+            ]);
+
+            foreach ($data['items'] as $item) {
+                $qty = (float) $item['qty'];
+                $rate = (float) $item['rate'];
+                $taxRate = (float) ($item['tax_rate'] ?? 0);
+                $amount = round($qty * $rate, 2);
+                $taxAmount = round($amount * $taxRate / 100, 2);
+
+                $revised->items()->create([
+                    'product_id' => $item['product_id'] ?? null,
+                    'item_name' => $item['item_name'],
+                    'description' => $item['description'] ?? null,
+                    'hsn_code' => $item['hsn_code'] ?? null,
+                    'qty' => $qty,
+                    'unit' => $item['unit'] ?? 'pcs',
+                    'rate' => $rate,
+                    'amount' => $amount,
+                    'tax_rate' => $taxRate,
+                    'tax_amount' => $taxAmount,
+                ]);
+            }
+
+            $revised->load('items');
+            $revised->calculateTotals();
+            $revised->load(['lead:id,company_name,owner_id', 'client:id,company_name,user_id']);
+            $this->applyQuotationWorkflowRules($revised, $revised->status);
+
+            if ($revised->lead_id) {
+                LeadActivity::create([
+                    'lead_id' => $revised->lead_id,
+                    'user_id' => \Illuminate\Support\Facades\Auth::id(),
+                    'type'    => 'note',
+                    'note'    => "Quotation revised: {$newQuotationNo} created (previous: {$original->quotation_no}).",
+                ]);
+            }
+
+            $this->bumpScopedCache(['leads', 'clients']);
+
+            return $revised->fresh(['lead', 'client', 'items.product']);
+        });
+    }
+
     public function update(int $id, array $data): mixed
     {
         return DB::transaction(function () use ($id, $data) {

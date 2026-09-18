@@ -15,6 +15,8 @@ class Quotation extends TenantModel
         'lead_id',
         'client_id',
         'quotation_no',
+        'version',
+        'parent_quotation_id',
         'quotation_date',
         'expiry_date',
         'status',
@@ -50,6 +52,21 @@ class Quotation extends TenantModel
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    // The quotation this one was revised from (e.g. V2's parent is V1) —
+    // null for the very first version in a chain.
+    public function parent()
+    {
+        return $this->belongsTo(Quotation::class, 'parent_quotation_id');
+    }
+
+    // Direct child revisions of this quotation (usually 0 or 1 — a
+    // quotation is normally revised at most once before the next round,
+    // but nothing stops multiple branches).
+    public function revisions()
+    {
+        return $this->hasMany(Quotation::class, 'parent_quotation_id');
     }
 
     public function items()

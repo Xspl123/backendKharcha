@@ -11,7 +11,6 @@ use App\Models\LeadActivity;
 use App\Repositories\Interfaces\QuotationRepositoryInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
-use App\Jobs\SendQuotationEmailJob;
 
 class QuotationController extends Controller
 {
@@ -33,6 +32,19 @@ class QuotationController extends Controller
         return response()->json([
             'message' => 'Quotation created successfully.',
             'data' => new QuotationResource($quotation),
+        ], 201);
+    }
+
+    // POST /api/quotations/{id}/revise
+    // Creates the next version (e.g. V2) linked back to this quotation —
+    // the original row is never modified, so both stay on record.
+    public function revise(StoreQuotationRequest $request, int $id)
+    {
+        $revised = $this->repo->reviseQuotation($id, $request->validated());
+
+        return response()->json([
+            'message' => 'New quotation version created.',
+            'data' => new QuotationResource($revised),
         ], 201);
     }
 
@@ -89,87 +101,51 @@ class QuotationController extends Controller
     // The PDF itself is generated client-side (same html2pdf approach the
     // existing Invoice feature already uses) and sent up as base64 —
     // this endpoint just attaches it and delivers the email.
-    // public function sendEmail(SendQuotationEmailRequest $request, int $id)
-    // {
-    //     $quotation = $this->repo->getById($id);
-    //     $sender = $request->user();
-
-    //     $mail = Mail::to($request->validated('to'));
-    //     if ($request->validated('cc')) {
-    //         $mail->cc($request->validated('cc'));
-    //     }
-
-    //     $mailable = new QuotationEmailMail(
-    //         $sender->name,
-    //         $request->validated('subject'),
-    //         $request->validated('body'),
-    //         $quotation->quotation_no,
-    //         $request->validated('pdf_base64'),
-    //         "Quotation_{$quotation->quotation_no}.pdf"
-    //     );
-    //     if ($sender->email) {
-    //         $mailable->replyTo($sender->email, $sender->name);
-    //     }
-    //     $mail->send($mailable);
-
-    //     // Same activity-trail convention as the lead-level "Send Email"
-    //     // feature (LeadController::sendLeadEmail) — visible on the lead's
-    //     // Activities tab, so there's a record of exactly which quotation
-    //     // went out, to whom, and when, not just a silent status flip.
-    //     if ($quotation->lead_id) {
-    //         LeadActivity::create([
-    //             'lead_id' => $quotation->lead_id,
-    //             'user_id' => $sender->id,
-    //             'type'    => 'email',
-    //             'note'    => "Quotation {$quotation->quotation_no} emailed to {$request->validated('to')}: \"{$request->validated('subject')}\"",
-    //         ]);
-    //     }
-
-    //     // Emailing the quotation to the customer is, by definition, the
-    //     // "Sent" step — auto-advance status so the table reflects reality
-    //     // without the user having to also remember to change it manually.
-    //     // Only moves it forward from Draft; never overrides an already
-    //     // Approved/Rejected/Expired quotation just because it was re-sent.
-    //     if ($quotation->status === 'draft') {
-    //         $this->repo->updateStatus($id, 'sent');
-    //     }
-
-    //     return response()->json(['message' => 'Quotation email bhej di gayi.']);
-    // }
-
     public function sendEmail(SendQuotationEmailRequest $request, int $id)
     {
         $quotation = $this->repo->getById($id);
         $sender = $request->user();
 
-        SendQuotationEmailJob::dispatch(
-            $quotation->id,
+        $mail = Mail::to($request->validated('to'));
+        if ($request->validated('cc')) {
+            $mail->cc($request->validated('cc'));
+        }
+
+        $mailable = new QuotationEmailMail(
             $sender->name,
-            $sender->email,
-            $request->validated('to'),
             $request->validated('subject'),
             $request->validated('body'),
+            $quotation->quotation_no,
             $request->validated('pdf_base64'),
-            $request->validated('cc') ?? []  
+            "Quotation_{$quotation->quotation_no}.pdf"
         );
+        if ($sender->email) {
+            $mailable->replyTo($sender->email, $sender->name);
+        }
+        $mail->send($mailable);
 
-        // Activity turant create ho jaye
+        // Same activity-trail convention as the lead-level "Send Email"
+        // feature (LeadController::sendLeadEmail) — visible on the lead's
+        // Activities tab, so there's a record of exactly which quotation
+        // went out, to whom, and when, not just a silent status flip.
         if ($quotation->lead_id) {
             LeadActivity::create([
                 'lead_id' => $quotation->lead_id,
                 'user_id' => $sender->id,
                 'type'    => 'email',
-                'note'    => "Quotation {$quotation->quotation_no} queued for email to {$request->validated('to')}: \"{$request->validated('subject')}\"",
+                'note'    => "Quotation {$quotation->quotation_no} emailed to {$request->validated('to')}: \"{$request->validated('subject')}\"",
             ]);
         }
 
-        // Draft -> Sent
+        // Emailing the quotation to the customer is, by definition, the
+        // "Sent" step — auto-advance status so the table reflects reality
+        // without the user having to also remember to change it manually.
+        // Only moves it forward from Draft; never overrides an already
+        // Approved/Rejected/Expired quotation just because it was re-sent.
         if ($quotation->status === 'draft') {
             $this->repo->updateStatus($id, 'sent');
         }
 
-        return response()->json([
-            'message' => 'Quotation email queue me daal di gayi.'
-        ]);
+        return response()->json(['message' => 'Quotation email bhej di gayi.']);
     }
 }

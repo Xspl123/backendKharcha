@@ -19,6 +19,8 @@ class QuotationResource extends JsonResource
         return [
             'id' => $this->id,
             'quotation_no' => $this->quotation_no,
+            'version' => $this->version,
+            'parent_quotation_id' => $this->parent_quotation_id,
             'quotation_date' => $this->quotation_date?->format('Y-m-d'),
             'expiry_date' => $this->expiry_date?->format('Y-m-d'),
             'status' => $this->status,
