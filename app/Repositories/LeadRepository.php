@@ -170,6 +170,12 @@ class LeadRepository implements LeadRepositoryInterface
         $this->bumpScopedCache(['leads', 'campaigns']);
 
         if (array_key_exists('status', $data) && $data['status'] !== $oldStatus) {
+            LeadActivity::create([
+                'lead_id' => $lead->id,
+                'user_id' => Auth::id(),
+                'type'    => 'status_change',
+                'note'    => "Status changed from \"{$oldStatus}\" to \"{$data['status']}\".",
+            ]);
             $this->applyWorkflowRules($lead, $data['status']);
         }
 
