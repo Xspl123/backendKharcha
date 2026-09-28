@@ -4,16 +4,20 @@ namespace App\Repositories;
 
 use App\Models\Role;
 use App\Models\Permission;
+use Illuminate\Support\Facades\Auth;
 
 class RoleRepository
 {
     // ── Get all roles with permissions ────────────────────
     public function getAll()
     {
-        return Role::with('permissions')
-            ->withCount('users')
-            ->orderBy('id')
-            ->get();
+        $query = Role::with('permissions')->withCount('users')->orderBy('id');
+
+        if (! Auth::user()->isSuperAdmin()) {
+            $query->where('name', '!=', 'super_admin');
+        }
+
+        return $query->get();
     }
 
     // ── Get all permissions grouped by module ─────────────
@@ -28,7 +32,13 @@ class RoleRepository
     // ── Find role by ID ───────────────────────────────────
     public function findById(int $id): Role
     {
-        return Role::with('permissions')->findOrFail($id);
+        $query = Role::with('permissions');
+
+        if (! Auth::user()->isSuperAdmin()) {
+            $query->where('name', '!=', 'super_admin');
+        }
+
+        return $query->findOrFail($id);
     }
 
     // ── Update role permissions (sync) ────────────────────

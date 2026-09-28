@@ -21,6 +21,7 @@ class OrganisationRepository
         $user = Auth::user();
         $previousOrgId = $user->org_id;
         $previousUserType = $user->user_type;
+        $orgAdminRoleId = \App\Models\Role::where('name', 'org_admin')->value('id');
 
         $org = Organisation::create([
             'owner_id'   => $user->id,
@@ -41,7 +42,7 @@ class OrganisationRepository
         OrganisationUser::create([
             'org_id'    => $org->id,
             'user_id'   => $user->id,
-            'role_id'   => null, // owner ka role = super_admin
+            'role_id'   => $orgAdminRoleId,
             'is_active' => true,
             'joined_at' => now(),
         ]);
@@ -50,6 +51,7 @@ class OrganisationRepository
         $user->update([
             'org_id'    => $org->id,
             'user_type' => 'org_owner',
+            'role_id'   => $orgAdminRoleId,
         ]);
 
         try {

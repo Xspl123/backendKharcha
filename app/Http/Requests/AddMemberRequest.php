@@ -20,7 +20,7 @@ class AddMemberRequest extends FormRequest
             'email'    => ['required', 'email', $this->centralUnique(User::class, 'email')],
             'phone'    => 'nullable|string|max:20',
             'password' => 'required|string|min:8',
-            'role_id'  => ['required', $this->centralExists(Role::class)],
+            'role_id' => ['required', $this->assignableRoleExists()],
         ];
     }
 }

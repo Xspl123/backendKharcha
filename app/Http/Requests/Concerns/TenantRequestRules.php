@@ -41,4 +41,15 @@ trait TenantRequestRules
 
         return $rule;
     }
+
+    protected function assignableRoleExists()
+    {
+        $rule = Rule::exists('roles', 'id');
+
+        if (! $this->user()?->isSuperAdmin()) {
+            $rule->where(fn ($q) => $q->where('name', '!=', 'super_admin'));
+        }
+
+        return $rule;
+    }
 }

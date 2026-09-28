@@ -23,7 +23,7 @@ class UpdateUserRequest extends FormRequest
             'email'          => ['sometimes', 'required', 'email', $this->centralUnique(User::class, 'email', $userId)],
             'phone'          => 'nullable|numeric|digits_between:10,15',
             'password'       => 'nullable|string|min:8|confirmed',
-            'role_id'        => ['sometimes', 'required', $this->centralExists(Role::class)],
+            'role_id' => ['sometimes', 'required', $this->assignableRoleExists()],
             'is_active'      => 'boolean',
             'invoice_prefix' => 'nullable|string|max:10',
         ];

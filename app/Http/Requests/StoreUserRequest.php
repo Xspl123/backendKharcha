@@ -21,7 +21,7 @@ class StoreUserRequest extends FormRequest
             'email'          => ['required', 'email', $this->centralUnique(User::class, 'email')],
             'phone'          => 'nullable|numeric|digits_between:10,15',
             'password'       => 'required|string|min:8|confirmed',
-            'role_id'        => ['required', $this->centralExists(Role::class)],
+            'role_id' => ['required', $this->assignableRoleExists()],
             'is_active'      => 'boolean',
             'invoice_prefix' => 'nullable|string|max:10',
         ];

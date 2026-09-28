@@ -76,6 +76,7 @@ class User extends Authenticatable
 
     public function hasPermission(string $permission): bool
     {
+        if ($this->isOrgOwner()) return true;   // yahan $this = logged-in user
         if (!$this->role) return false;
         if ($this->role->name === 'super_admin') return true;
         return $this->role->permissions?->pluck('name')->contains($permission) ?? false;
@@ -112,8 +113,18 @@ class User extends Authenticatable
             return $query;
         }
 
+        // Owner: apne org ke sab users (super_admin ko chhod ke)
         if ($user->isOrgOwner()) {
-            return $query->where('org_id', $user->org_id ?? 0);
+            return $query->where('org_id', $user->org_id ?? 0)
+                ->whereDoesntHave('role', fn ($q) => $q->where('name', 'super_admin'));
+        }
+
+        // Org Admin (users.view wala member): sirf apne banaye users + khud
+        if ($user->org_id && $user->hasPermission('users.view')) {
+            return $query->where('org_id', $user->org_id)
+                ->where(fn ($q) => $q->where('created_by', $user->id)
+                    ->orWhere('id', $user->id))
+                ->whereDoesntHave('role', fn ($q) => $q->where('name', 'super_admin'));
         }
 
         return $query->where('id', $user->id);
