@@ -15,7 +15,7 @@ class RoleRepository
         $query = Role::with('permissions')->withCount('users')->orderBy('id');
 
         if ($user->isSuperAdmin()) {
-            return $query->get();
+            return $query->with('organisation')->get();
         }
 
         return $query->where('org_id', $user->org_id)->get();

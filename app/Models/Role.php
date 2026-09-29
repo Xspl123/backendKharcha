@@ -25,4 +25,9 @@ class Role extends Model
     {
         return $this->permissions->pluck('name')->contains($permission);
     }
+
+    public function organisation()
+    {
+        return $this->belongsTo(Organisation::class, 'org_id');
+    }
 }
