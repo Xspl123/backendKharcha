@@ -11,13 +11,14 @@ class RoleRepository
     // ── Get all roles with permissions ────────────────────
     public function getAll()
     {
+        $user = Auth::user();
         $query = Role::with('permissions')->withCount('users')->orderBy('id');
 
-        if (! Auth::user()->isSuperAdmin()) {
-            $query->where('name', '!=', 'super_admin');
+        if ($user->isSuperAdmin()) {
+            return $query->get();
         }
 
-        return $query->get();
+        return $query->where('org_id', $user->org_id)->get();
     }
 
     // ── Get all permissions grouped by module ─────────────
@@ -32,10 +33,11 @@ class RoleRepository
     // ── Find role by ID ───────────────────────────────────
     public function findById(int $id): Role
     {
+        $user = Auth::user();
         $query = Role::with('permissions');
 
-        if (! Auth::user()->isSuperAdmin()) {
-            $query->where('name', '!=', 'super_admin');
+        if (! $user->isSuperAdmin()) {
+            $query->where('org_id', $user->org_id);
         }
 
         return $query->findOrFail($id);
@@ -44,11 +46,22 @@ class RoleRepository
     // ── Update role permissions (sync) ────────────────────
     public function updatePermissions(int $roleId, array $permissionIds): Role
     {
+        $user = Auth::user();
         $role = Role::findOrFail($roleId);
 
-        // Prevent modifying super_admin permissions from API
+        // Super admin role kabhi API se modify nahi hoga
         if ($role->name === 'super_admin') {
             abort(403, 'Super Admin permissions cannot be modified.');
+        }
+
+        // System preset (org_id = null) directly modify nahi ho sakta
+        if (is_null($role->org_id) && ! $user->isSuperAdmin()) {
+            abort(403, 'Access denied.');
+        }
+
+        // Non-super-admin sirf apne org ke role modify kar sakta hai
+        if (! $user->isSuperAdmin() && $role->org_id !== $user->org_id) {
+            abort(403, 'Access denied.');
         }
 
         $role->permissions()->sync($permissionIds);

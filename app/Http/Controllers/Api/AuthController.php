@@ -40,45 +40,6 @@ class AuthController extends Controller
         return response()->json(['message' => 'Something went wrong'], 400);
     }
 
-    // public function verifyOtp(Request $request)
-    // {
-    //     $request->validate([
-    //         'email' => 'required|email',
-    //         'otp'   => 'required'
-    //     ]);
-
-    //     $user = User::where('email', $request->email)->first();
-
-    //     if (!$user) {
-    //         return response()->json(['message' => 'User not found'], 404);
-    //     }
-
-    //     if ($user->is_verified) {
-    //         return response()->json(['message' => 'Account already verified'], 400);
-    //     }
-
-    //     if ($user->otp != $request->otp) {
-    //         return response()->json(['message' => 'Invalid OTP'], 400);
-    //     }
-
-    //     if (Carbon::now()->greaterThan($user->otp_expires_at)) {
-    //         return response()->json(['message' => 'OTP expired'], 400);
-    //     }
-
-    //     $user->is_verified    = 1;
-    //     $user->otp            = null;
-    //     $user->otp_expires_at = null;
-    //     $user->save();
-
-    //     $token = $user->createToken('auth_token')->plainTextToken;
-
-    //     return response()->json([
-    //         'message' => 'OTP verified successfully',
-    //         'token'   => $token,
-    //         'user'    => $this->formatUser($user->fresh('role.permissions')),
-    //     ]);
-    // }
-
     // ── Verify OTP — org auto-create here ─────────────────
     public function verifyOtp(Request $request)
     {
@@ -86,24 +47,24 @@ class AuthController extends Controller
             'email' => 'required|email',
             'otp'   => 'required',
         ]);
- 
+
         $user = User::where('email', $request->email)->first();
- 
-        if (!$user)                                        return response()->json(['message' => 'User not found'], 404);
+
+        if (!$user)                                        return response()->json(['message' => 'Invalid email or OTP'], 400);
         if ($user->is_verified)                            return response()->json(['message' => 'Account already verified'], 400);
-        if ($user->otp != $request->otp)                  return response()->json(['message' => 'Invalid OTP'], 400);
-        if (Carbon::now()->greaterThan($user->otp_expires_at)) return response()->json(['message' => 'OTP expired'], 400);
- 
+        if ($user->otp != $request->otp)                  return response()->json(['message' => 'Invalid or expired OTP'], 400);
+        if (Carbon::now()->greaterThan($user->otp_expires_at)) return response()->json(['message' => 'Invalid or expired OTP'], 400);
+
         $user->is_verified    = 1;
         $user->otp            = null;
         $user->otp_expires_at = null;
         $user->save();
- 
+
         // ── Auto-create Organisation if user_type = pending_org ──
         if ($user->user_type === 'pending_org') {
             $orgName = $user->org_name ?? ($user->name . "'s Organisation");
             $plan    = $user->plan    ?? 'basic';
- 
+
             $org = Organisation::create([
                 'owner_id'  => $user->id,
                 'name'      => $orgName,
@@ -112,25 +73,43 @@ class AuthController extends Controller
                 'is_active' => true,
                 'country'   => 'India',
             ]);
- 
+
+            // ── Preset roles clone karo is org ke liye ──
+            $orgAdminRoleId = null;
+            foreach (\App\Models\Role::whereNull('org_id')->where('name', '!=', 'super_admin')->get() as $preset) {
+                $cloned = \App\Models\Role::create([
+                    'org_id'      => $org->id,
+                    'name'        => $preset->name,
+                    'label'       => $preset->label,
+                    'color'       => $preset->color,
+                    'description' => $preset->description,
+                ]);
+                $cloned->permissions()->sync($preset->permissions->pluck('id'));
+
+                if ($preset->name === 'org_admin') {
+                    $orgAdminRoleId = $cloned->id;
+                }
+            }
+
             // Organisation_users mein add karo
             OrganisationUser::create([
                 'org_id'    => $org->id,
                 'user_id'   => $user->id,
+                'role_id'   => $orgAdminRoleId,
                 'is_active' => true,
                 'joined_at' => now(),
             ]);
- 
+
             // User update karo
             $user->update([
                 'org_id'    => $org->id,
                 'user_type' => 'org_owner',
+                'role_id'   => $orgAdminRoleId,
             ]);
         }
- 
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
- 
         return response()->json([
             'message' => 'OTP verified successfully',
             'token'   => $token,
@@ -142,15 +121,14 @@ class AuthController extends Controller
     {
         $user = $this->userRepository->findByEmail($request->email);
 
-        if (!$user) {
-            return response()->json(['message' => 'User with this email does not exist'], 404);
+        if (!$user || !Auth::attempt($request->only('email', 'password'))) {
+            return response()->json(['message' => 'Invalid email or password'], 401);
         }
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
-            return response()->json(['message' => 'Password does not match'], 401);
+        if (!$user->is_verified) {
+            return response()->json(['message' => 'Please verify your account via OTP before logging in.'], 403);
         }
 
-        // ✅ Check if user is active
         if (!$user->is_active) {
             return response()->json(['message' => 'Your account has been deactivated. Contact admin.'], 403);
         }

@@ -9,7 +9,7 @@ class Role extends Model
 {
     use UsesCentralConnection;
 
-    protected $fillable = ['name', 'label', 'description', 'color'];
+    protected $fillable = ['org_id', 'name', 'label', 'description', 'color'];
 
     public function permissions()
     {

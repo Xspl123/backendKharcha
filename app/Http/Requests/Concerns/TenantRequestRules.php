@@ -42,12 +42,17 @@ trait TenantRequestRules
         return $rule;
     }
 
-    protected function assignableRoleExists()
+    // TenantRequestRules.php
+    protected function assignableRoleExists(?\App\Models\User $user = null)
     {
+        $user = $user ?? $this->user();
         $rule = Rule::exists('roles', 'id');
 
-        if (! $this->user()?->isSuperAdmin()) {
-            $rule->where(fn ($q) => $q->where('name', '!=', 'super_admin'));
+        if (! $user?->isSuperAdmin()) {
+            $rule->where(fn ($q) => $q
+                ->where('name', '!=', 'super_admin')
+                ->where('org_id', $user?->org_id)
+            );
         }
 
         return $rule;

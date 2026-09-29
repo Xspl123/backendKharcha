@@ -19,9 +19,9 @@ class OrganisationRepository
     public function create(array $data): Organisation
     {
         $user = Auth::user();
-        $previousOrgId = $user->org_id;
+        $previousOrgId   = $user->org_id;
         $previousUserType = $user->user_type;
-        $orgAdminRoleId = \App\Models\Role::where('name', 'org_admin')->value('id');
+        $previousRoleId  = $user->role_id;   // ← naya, rollback ke liye chahiye
 
         $org = Organisation::create([
             'owner_id'   => $user->id,
@@ -37,6 +37,22 @@ class OrganisationRepository
             'plan'       => 'free',
             'is_active'  => true,
         ]);
+
+        // ── Preset roles clone karo is org ke liye ──
+        $orgAdminRoleId = null;
+        foreach (\App\Models\Role::whereNull('org_id')->where('name', '!=', 'super_admin')->get() as $preset) {
+            $cloned = \App\Models\Role::create([
+                'org_id' => $org->id,
+                'name'   => $preset->name,
+                'label'  => $preset->label,
+                'color'  => $preset->color,
+            ]);
+            $cloned->permissions()->sync($preset->permissions->pluck('id'));
+
+            if ($preset->name === 'org_admin') {
+                $orgAdminRoleId = $cloned->id;
+            }
+        }
 
         // Owner ko org mein add karo
         OrganisationUser::create([
@@ -62,9 +78,18 @@ class OrganisationRepository
                 ->delete();
 
             $user->update([
-                'org_id' => $previousOrgId,
+                'org_id'    => $previousOrgId,
                 'user_type' => $previousUserType,
+                'role_id'   => $previousRoleId,   
             ]);
+
+            $cloned = \App\Models\Role::create([
+                    'org_id'      => $org->id,
+                    'name'        => $preset->name,
+                    'label'       => $preset->label,
+                    'color'       => $preset->color,
+                    'description' => $preset->description,  
+                ]);
 
             $org->delete();
 

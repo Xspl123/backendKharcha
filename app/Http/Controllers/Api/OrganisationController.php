@@ -10,10 +10,13 @@ use App\Models\Role;
 use App\Repositories\OrganisationRepository;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Http\Requests\Concerns\TenantRequestRules;
 use App\Models\User;
 
 class OrganisationController extends Controller
 {
+    use TenantRequestRules;
+
     public function __construct(private OrganisationRepository $repo) {}
 
     // POST /api/organisation/create
@@ -82,26 +85,22 @@ class OrganisationController extends Controller
     {
         $auth = $request->user();
 
-    if (! $auth->isOrgOwner() && ! $auth->isSuperAdmin() && ! $auth->hasPermission('users.edit')) {
-        abort(403, 'Access denied.');
-    }
+        if (! $auth->isOrgOwner() && ! $auth->isSuperAdmin() && ! $auth->hasPermission('users.edit')) {
+            abort(403, 'Access denied.');
+        }
 
-    if ($auth->id === $userId && ! $auth->isSuperAdmin()) {
-        abort(403, 'You cannot change your own role.');
-    }
+        if ($auth->id === $userId && ! $auth->isSuperAdmin()) {
+            abort(403, 'You cannot change your own role.');
+        }
 
-    $request->validate([
-        'role_id' => ['required', Rule::exists('roles', 'id')->where(function ($q) use ($auth) {
-            if (! $auth->isSuperAdmin()) {
-                $q->where('name', '!=', 'super_admin');
-            }
-        })],
-    ]);
+        $request->validate([
+                    'role_id' => ['required', $this->assignableRoleExists()],
+            ]);
 
-    // scope enforce karta hai: owner = poora org, org admin = sirf apne banaye users
-    User::visibleTo($auth)->findOrFail($userId);
-        $ou = $this->repo->updateMemberRole($userId, $request->role_id);
-        return response()->json(['message' => 'Role updated.', 'data' => $ou]);
+        // scope enforce karta hai: owner = poora org, org admin = sirf apne banaye users
+        User::visibleTo($auth)->findOrFail($userId);
+            $ou = $this->repo->updateMemberRole($userId, $request->role_id);
+            return response()->json(['message' => 'Role updated.', 'data' => $ou]);
     }
 
     // PATCH /api/organisation/members/{userId}/toggle

@@ -31,7 +31,6 @@ use App\Http\Controllers\Api\OrganisationController;
 use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\QuotationController;
-use App\Http\Controllers\AIController;
 use App\Http\Controllers\Api\PublicLeadController;
 
 // ── Public Routes ─────────────────────────────────────────
@@ -41,8 +40,6 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:au
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset');
 Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset');
 Route::post('/password-reset', [AuthController::class, 'sendPasswordResetLink'])->middleware('throttle:password-reset');
-
-Route::post('/ask-ai', [AIController::class, 'askAI']);
 
 Route::middleware(['tenant.slug'])->prefix('public/leads')->group(function () {
     Route::get('/{orgSlug}',  [PublicLeadController::class, 'show']);

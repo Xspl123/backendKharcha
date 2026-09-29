@@ -21,7 +21,7 @@ class RolePresetSeeder extends Seeder
                 'description' => 'Full system access',
                 'color' => '#dc2626',
                 'permissions' => ['*'],
-            ],
+            ],  
             'org_admin' => [
                 'label' => 'Org Admin',
                 'description' => 'Organisation-wide operational access',
@@ -124,7 +124,7 @@ class RolePresetSeeder extends Seeder
 
         foreach ($presets as $name => $preset) {
             $role = Role::updateOrCreate(
-                ['name' => $name],
+                ['name' => $name, 'org_id' => null],   // ← ye add karo
                 [
                     'label' => $preset['label'],
                     'description' => $preset['description'],
