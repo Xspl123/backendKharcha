@@ -11,6 +11,7 @@ class RoleResource extends JsonResource
     {
         return [
             'id'          => $this->id,
+            'org_id'      => $this->org_id,  
             'name'        => $this->name,
             'label'       => $this->label,
             'description' => $this->description,
@@ -24,7 +25,7 @@ class RoleResource extends JsonResource
                 ])
             ),
             'users_count' => $this->whenCounted('users'),
-            'org_name' => $this->when($this->org_id, fn () => $this->organisation?->name),
+            'org_name'    => $this->when($this->org_id, fn () => $this->organisation?->name),
             'created_at'  => $this->created_at?->format('Y-m-d'),
         ];
     }

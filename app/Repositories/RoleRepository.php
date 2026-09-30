@@ -9,13 +9,18 @@ use Illuminate\Support\Facades\Auth;
 class RoleRepository
 {
     // ── Get all roles with permissions ────────────────────
-    public function getAll()
+   public function getAll()
     {
         $user = Auth::user();
         $query = Role::with('permissions')->withCount('users')->orderBy('id');
 
         if ($user->isSuperAdmin()) {
-            return $query->with('organisation')->get();
+            return $query->with('organisation')
+                ->where(function ($q) {
+                    $q->whereNotNull('org_id')
+                    ->orWhere('name', 'super_admin');
+                })
+                ->get();
         }
 
         return $query->where('org_id', $user->org_id)->get();
