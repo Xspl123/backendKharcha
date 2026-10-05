@@ -2,49 +2,47 @@
 
 namespace App\Services;
 
+use App\Models\Invoice;
 use Illuminate\Support\Facades\DB;
 
 class InvoiceNumberService
 {
-    public static function generate($tenantId)
+    public static function generate($orgId)
     {
-        return retry(5, function () use ($tenantId) {
-
-            return DB::transaction(function () use ($tenantId) {
-
-                $year = now()->year;
+        return retry(5, function () use ($orgId) {
+            return DB::transaction(function () use ($orgId) {
+                $year   = now()->year;
+                $prefix = auth()->user()->invoice_prefix ?? 'INV';
 
                 $seq = DB::table('invoice_sequences')
-                    ->where('tenant_id', $tenantId)
+                    ->where('tenant_id', $orgId)
                     ->where('year', $year)
                     ->lockForUpdate()
                     ->first();
 
-                if (!$seq) {
+                $next = $seq ? $seq->current_no + 1 : 1;
+
+                // number pehle se maujood ho to aage badho
+                while (Invoice::where('invoice_no', sprintf('%s-%d-%05d', $prefix, $year, $next))->exists()) {
+                    $next++;
+                }
+
+                if ($seq) {
+                    DB::table('invoice_sequences')
+                        ->where('id', $seq->id)
+                        ->update(['current_no' => $next, 'updated_at' => now()]);
+                } else {
                     DB::table('invoice_sequences')->insert([
-                        'tenant_id' => $tenantId,
-                        'year' => $year,
-                        'current_no' => 1,
+                        'tenant_id'  => $orgId,
+                        'year'       => $year,
+                        'current_no' => $next,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
-                    $next = 1;
-                } else {
-                    $next = $seq->current_no + 1;
-
-                    DB::table('invoice_sequences')
-                        ->where('id', $seq->id)
-                        ->update([
-                            'current_no' => $next,
-                            'updated_at' => now(),
-                        ]);
                 }
-
-                $prefix = auth()->user()->invoice_prefix ?? 'INV';
 
                 return sprintf('%s-%d-%05d', $prefix, $year, $next);
             });
-
         }, 50);
     }
 }

@@ -38,7 +38,7 @@ class InvoiceRepository implements InvoiceRepositoryInterface
     {
         return DB::transaction(function () use ($data) {
             $data = $this->scopeData($data);
-            $data['invoice_no'] = InvoiceNumberService::generate($data['user_id']);
+            $data['invoice_no'] = InvoiceNumberService::generate($data['org_id']);
 
             $items = $data['items'] ?? [];
             unset($data['items']);
