@@ -60,11 +60,20 @@ class ProductRepository implements ProductRepositoryInterface
             $openingStock  = (float) ($data['opening_stock']  ?? 0);
             $purchasePrice = (float) ($data['purchase_price'] ?? 0);
 
+            $productData = $this->scopeData($data);
+            if (blank($productData['sku'] ?? null)) {
+                $productData['sku'] = null;
+            }
+
             $product = Product::create([
-                ...$this->scopeData($data),
+                ...$productData,
                 'current_stock' => $openingStock,
                 'avg_cost'      => $purchasePrice,
             ]);
+
+            if (blank($product->sku)) {
+                $product->update(['sku' => $this->generateSku($product)]);
+            }
 
             if ($openingStock > 0) {
                 $this->stockService->setOpeningStock($product, $openingStock, $purchasePrice);
@@ -83,7 +92,15 @@ class ProductRepository implements ProductRepositoryInterface
             $newOpening = (float) ($data['opening_stock'] ?? $product->opening_stock);
             $oldOpening = (float) $product->opening_stock;
 
+            if (array_key_exists('sku', $data) && blank($data['sku'])) {
+                $data['sku'] = null;
+            }
+
             $product->update($data);
+
+            if (blank($product->sku)) {
+                $product->update(['sku' => $this->generateSku($product)]);
+            }
 
             if ($newOpening !== $oldOpening) {
                 $this->stockService->setOpeningStock(
@@ -96,6 +113,23 @@ class ProductRepository implements ProductRepositoryInterface
 
             return $product->fresh('category:id,name,color');
         });
+    }
+
+    private function generateSku(Product $product): string
+    {
+        $baseSku = sprintf('SKU-%06d', $product->id);
+        $sku = $baseSku;
+        $suffix = 1;
+
+        while (Product::withTrashed()
+            ->where('user_id', $product->user_id)
+            ->where('sku', $sku)
+            ->where('id', '!=', $product->id)
+            ->exists()) {
+            $sku = $baseSku . '-' . $suffix++;
+        }
+
+        return $sku;
     }
 
     public function delete(int $id): bool

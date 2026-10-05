@@ -49,7 +49,7 @@ class PurchaseOrderRepository implements PurchaseOrderRepositoryInterface
     public function getById(int $id): mixed
     {
         return $this->scopeQuery(PurchaseOrder::query())
-            ->with(['vendor', 'items', 'payments' => fn($q) => $q->latest()])
+            ->with(['vendor', 'items.product:id,sku', 'payments' => fn($q) => $q->latest()])
             ->findOrFail($id);
     }
 
@@ -97,7 +97,7 @@ class PurchaseOrderRepository implements PurchaseOrderRepositoryInterface
             $po->load('items');
             $po->calculateTotals();
             $this->bumpScopedCache(['purchase_orders', 'vendors', 'stock', 'stock_report']);
-            return $po->load(['vendor', 'items']);
+            return $po->load(['vendor', 'items.product:id,sku']);
         });
     }
 
@@ -144,7 +144,7 @@ class PurchaseOrderRepository implements PurchaseOrderRepositoryInterface
             }
 
             $this->bumpScopedCache(['purchase_orders', 'vendors', 'stock', 'stock_report']);
-            return $po->load(['vendor', 'items']);
+            return $po->load(['vendor', 'items.product:id,sku']);
         });
     }
 
