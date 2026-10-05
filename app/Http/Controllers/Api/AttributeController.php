@@ -190,7 +190,7 @@ class AttributeController extends Controller
     // POST /api/products/{productId}/attributes — bulk save
     public function saveProductAttributes(Request $request, int $productId)
     {
-        $request->validate([
+        $data = $request->validate([
             'attributes'                => 'required|array',
             'attributes.*.attribute_id' => 'required|integer',
             'attributes.*.value'        => 'nullable|string',
@@ -198,8 +198,8 @@ class AttributeController extends Controller
 
         $this->productsQuery()->findOrFail($productId);
 
-        DB::transaction(function () use ($request, $productId) {
-            foreach ($request->attributes as $item) {
+        DB::transaction(function () use ($data, $productId) {
+            foreach ($data['attributes'] as $item) {
                 $attribute = $this->attributesQuery()->findOrFail($item['attribute_id']);
 
                 ProductAttribute::updateOrCreate(
