@@ -65,7 +65,10 @@ class SuperAdminController extends Controller
 
     public function loginHistory(Request $request)
     {
-        $request->validate(['user_id' => 'nullable|integer|exists:users,id']);
+        $request->validate([
+            'user_id' => 'nullable|integer|exists:users,id',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
 
         $query = LoginHistory::with('user:id,name,email')
             ->orderByDesc('logged_in_at');
@@ -74,7 +77,8 @@ class SuperAdminController extends Controller
             $query->where('user_id', $request->integer('user_id'));
         }
 
-        $histories = $query->limit(200)->get()->map(fn (LoginHistory $history) => [
+        $paginator = $query->paginate($request->integer('per_page', 25));
+        $histories = $paginator->getCollection()->map(fn (LoginHistory $history) => [
             'id' => $history->id,
             'user_id' => $history->user_id,
             'user' => $history->user ? [
@@ -89,13 +93,22 @@ class SuperAdminController extends Controller
             'logged_in_at' => $history->logged_in_at,
         ]);
 
-        return response()->json(['data' => $histories]);
+        return response()->json([
+            'data' => $histories,
+            'pagination' => [
+                'total' => $paginator->total(),
+            ],
+        ]);
     }
 
     // ── All Users ─────────────────────────────────────────
     public function users(Request $request)
     {
-        $users = User::with(['role', 'organisation:id,name'])
+        $users = User::with([
+            'role',
+            'organisation:id,name',
+            'lastLoginHistory',
+        ])
             ->orderByDesc('created_at')
             ->get();
 

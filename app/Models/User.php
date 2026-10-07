@@ -67,6 +67,12 @@ class User extends Authenticatable
     { 
         return $this->belongsTo(Organisation::class, 'org_id'); 
     }
+
+    public function lastLoginHistory()
+    {
+        return $this->hasOne(LoginHistory::class)->latestOfMany();
+    }
+
     public function ownedOrgs()
     { 
         return $this->hasMany(Organisation::class, 'owner_id'); 

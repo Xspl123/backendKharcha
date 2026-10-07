@@ -177,13 +177,19 @@ class AuthController extends Controller
 
     public function loginHistory(Request $request)
     {
+        $request->validate(['per_page' => 'nullable|integer|min:1|max:100']);
+
         $histories = LoginHistory::query()
             ->where('user_id', $request->user()->id)
             ->orderByDesc('logged_in_at')
-            ->limit(50)
-            ->get();
+            ->paginate($request->integer('per_page', 25));
 
-        return response()->json(['data' => $histories]);
+        return response()->json([
+            'data' => $histories->items(),
+            'pagination' => [
+                'total' => $histories->total(),
+            ],
+        ]);
     }
 
     private function recordLoginHistory(Request $request, User $user, ?string $deviceId): void
