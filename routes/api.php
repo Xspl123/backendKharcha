@@ -52,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Auth ──────────────────────────────────────────────
     Route::get('/me', [AuthController::class, 'userProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/login-history', [AuthController::class, 'loginHistory']);
     Route::get('/users/list', [AuthController::class, 'getAllUsers']);
 
     // ── Organisation — sabhi authenticated users ke liye ──
@@ -346,6 +347,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('super-admin')->middleware('super_admin')->group(function () {
         Route::get('/organisations',                [SuperAdminController::class, 'organisations']);
         Route::get('/organisations/{id}/users',     [SuperAdminController::class, 'orgUsers']);
+        Route::get('/login-history',                [SuperAdminController::class, 'loginHistory']);
         Route::patch('/organisations/{id}/toggle',  [SuperAdminController::class, 'toggleOrg']);
         Route::patch('/organisations/{id}/plan',    [SuperAdminController::class, 'changePlan']);
         Route::get('/users',                        [SuperAdminController::class, 'users']);

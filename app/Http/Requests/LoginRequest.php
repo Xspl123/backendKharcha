@@ -16,6 +16,8 @@ class LoginRequest extends FormRequest
         return [
             'email' => 'required|email',
             'password' => 'required',
+            'device_id' => 'nullable|string|max:100',
+            'replace_existing_session' => 'sometimes|boolean',
         ];
     }
 }

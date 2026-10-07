@@ -9,10 +9,14 @@ use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\LoginRequest;
 use App\Repositories\Interfaces\UserRepositoryInterface;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Models\User;
+use App\Models\LoginHistory;
 use App\Models\Organisation;
 use App\Models\OrganisationUser;
 
@@ -133,13 +137,120 @@ class AuthController extends Controller
             return response()->json(['message' => 'Your account has been deactivated. Contact admin.'], 403);
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $deviceId = $request->input('device_id');
+        $replaceExistingSession = $request->boolean('replace_existing_session');
+
+        $token = DB::transaction(function () use ($user, $deviceId, $replaceExistingSession) {
+            $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
+            $existingTokens = $lockedUser->tokens()->get();
+            $deviceTokenName = $deviceId ? 'auth_device:' . $deviceId : null;
+            $hasOtherDevice = $existingTokens->contains(
+                fn ($existingToken) => $existingToken->name !== $deviceTokenName
+            );
+
+            if ($hasOtherDevice && !$replaceExistingSession) {
+                return null;
+            }
+
+            if ($existingTokens->isNotEmpty()) {
+                $lockedUser->tokens()->delete();
+            }
+
+            return $lockedUser->createToken($deviceTokenName ?: 'auth_token')->plainTextToken;
+        });
+
+        if (!$token) {
+            return response()->json([
+                'code' => 'active_session_exists',
+                'message' => 'This account is active on another device.',
+            ], 409);
+        }
+
+        $this->recordLoginHistory($request, $user, $deviceId);
 
         return response()->json([
             'message' => 'Login successful',
             'token'   => $token,
             'user'    => $this->formatUser($user->load('role.permissions','organisation')),
         ]);
+    }
+
+    public function loginHistory(Request $request)
+    {
+        $histories = LoginHistory::query()
+            ->where('user_id', $request->user()->id)
+            ->orderByDesc('logged_in_at')
+            ->limit(50)
+            ->get();
+
+        return response()->json(['data' => $histories]);
+    }
+
+    private function recordLoginHistory(Request $request, User $user, ?string $deviceId): void
+    {
+        $userAgent = substr((string) $request->userAgent(), 0, 2000);
+        $browser = $this->browserFromUserAgent($userAgent);
+        $platform = $this->platformFromUserAgent($userAgent);
+        $ipAddress = $request->ip();
+        $geo = [];
+
+        if ($ipAddress && filter_var($ipAddress, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            try {
+                $geo = Cache::remember('login-ip-location:' . $ipAddress, now()->addDays(30), function () use ($ipAddress) {
+                    $response = Http::timeout(1)->get('https://ipwho.is/' . rawurlencode($ipAddress));
+                    return $response->successful() && $response->json('success')
+                        ? $response->json()
+                        : [];
+                });
+            } catch (\Throwable $exception) {
+                $geo = [];
+            }
+        }
+
+        try {
+            LoginHistory::create([
+                'user_id' => $user->id,
+                'device_id' => $deviceId,
+                'device_name' => trim(implode(' on ', array_filter([$browser, $platform]))) ?: 'Unknown device',
+                'browser' => $browser ?: null,
+                'platform' => $platform ?: null,
+                'ip_address' => $ipAddress,
+                'user_agent' => $userAgent ?: null,
+                'city' => $geo['city'] ?? null,
+                'region' => $geo['region'] ?? null,
+                'country' => $geo['country'] ?? null,
+                'country_code' => $geo['country_code'] ?? null,
+                'timezone' => data_get($geo, 'timezone.id'),
+                'logged_in_at' => now(),
+            ]);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    private function browserFromUserAgent(string $userAgent): ?string
+    {
+        return match (true) {
+            preg_match('/Edg\//i', $userAgent) === 1 => 'Edge',
+            preg_match('/OPR\//i', $userAgent) === 1 => 'Opera',
+            preg_match('/SamsungBrowser/i', $userAgent) === 1 => 'Samsung Internet',
+            preg_match('/Firefox\//i', $userAgent) === 1 => 'Firefox',
+            preg_match('/Chrome\//i', $userAgent) === 1 => 'Chrome',
+            preg_match('/Safari\//i', $userAgent) === 1 => 'Safari',
+            default => null,
+        };
+    }
+
+    private function platformFromUserAgent(string $userAgent): ?string
+    {
+        return match (true) {
+            preg_match('/Windows/i', $userAgent) === 1 => 'Windows',
+            preg_match('/Android/i', $userAgent) === 1 => 'Android',
+            preg_match('/iPhone|iPad|iPod/i', $userAgent) === 1 => 'iOS',
+            preg_match('/Mac OS X/i', $userAgent) === 1 => 'macOS',
+            preg_match('/Linux/i', $userAgent) === 1 => 'Linux',
+            default => null,
+        };
     }
 
     public function logout()

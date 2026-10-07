@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organisation;
+use App\Models\LoginHistory;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -60,6 +61,35 @@ class SuperAdminController extends Controller
             'message' => 'Plan updated to ' . $request->plan,
             'plan'    => $org->plan,
         ]);
+    }
+
+    public function loginHistory(Request $request)
+    {
+        $request->validate(['user_id' => 'nullable|integer|exists:users,id']);
+
+        $query = LoginHistory::with('user:id,name,email')
+            ->orderByDesc('logged_in_at');
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->integer('user_id'));
+        }
+
+        $histories = $query->limit(200)->get()->map(fn (LoginHistory $history) => [
+            'id' => $history->id,
+            'user_id' => $history->user_id,
+            'user' => $history->user ? [
+                'name' => $history->user->name,
+                'email' => $history->user->email,
+            ] : null,
+            'device_name' => $history->device_name,
+            'ip_address' => $history->ip_address,
+            'city' => $history->city,
+            'region' => $history->region,
+            'country' => $history->country,
+            'logged_in_at' => $history->logged_in_at,
+        ]);
+
+        return response()->json(['data' => $histories]);
     }
 
     // ── All Users ─────────────────────────────────────────
