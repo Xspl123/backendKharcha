@@ -13,6 +13,7 @@ class InvoiceItem extends TenantModel
         'product_id',
         'item_name',
         'description',
+        'attributes',
         'hsn_code',
         'qty',
         'unit',
@@ -25,6 +26,7 @@ class InvoiceItem extends TenantModel
     ];
 
     protected $casts = [
+        'attributes' => 'array',
         'qty' => 'decimal:2',
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',

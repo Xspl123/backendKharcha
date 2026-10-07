@@ -13,6 +13,7 @@ class PurchaseOrderItemResource extends JsonResource
             'id'          => $this->id,
             'item_name'   => $this->item_name,
             'description' => $this->description,
+            'attributes'  => $this->attributes ?? [],
             'hsn_code'    => $this->hsn_code,
             'qty'         => (float) $this->qty,
             'unit'        => $this->unit,

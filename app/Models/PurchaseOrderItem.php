@@ -14,6 +14,7 @@ class PurchaseOrderItem extends TenantModel
         'user_id',
         'item_name',
         'description',
+        'attributes',
         'hsn_code',
         'qty',
         'unit',
@@ -30,6 +31,7 @@ class PurchaseOrderItem extends TenantModel
     ];
 
     protected $casts = [
+        'attributes' => 'array',
         'qty'        => 'float',
         'rate'       => 'float',
         'amount'     => 'float',

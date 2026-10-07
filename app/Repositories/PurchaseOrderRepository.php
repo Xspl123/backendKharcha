@@ -82,6 +82,7 @@ class PurchaseOrderRepository implements PurchaseOrderRepositoryInterface
                 $po->items()->create([
                     'item_name'   => $itemData['item_name'],
                     'description' => $itemData['description'] ?? null,
+                    'attributes'  => $itemData['attributes'] ?? null,
                     'hsn_code'    => $itemData['hsn_code']    ?? null,
                     'qty'         => $qty,
                     'unit'        => $itemData['unit']        ?? 'pcs',
@@ -128,6 +129,7 @@ class PurchaseOrderRepository implements PurchaseOrderRepositoryInterface
                     $po->items()->create([
                         'item_name'   => $itemData['item_name'],
                         'description' => $itemData['description'] ?? null,
+                        'attributes'  => $itemData['attributes'] ?? null,
                         'hsn_code'    => $itemData['hsn_code']    ?? null,
                         'qty'         => $qty,
                         'unit'        => $itemData['unit']        ?? 'pcs',
