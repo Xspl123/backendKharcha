@@ -112,7 +112,10 @@ class AuthController extends Controller
             ]);
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $deviceId = $request->input('device_id');
+        $tokenName = $deviceId ? 'auth_device:' . $deviceId : 'auth_token';
+        $token = $user->createToken($tokenName)->plainTextToken;
+        $this->recordLoginHistory($request, $user, $deviceId);
 
         return response()->json([
             'message' => 'OTP verified successfully',
@@ -178,6 +181,7 @@ class AuthController extends Controller
     public function loginHistory(Request $request)
     {
         $request->validate(['per_page' => 'nullable|integer|min:1|max:100']);
+        $this->ensureCurrentSessionLoginHistory($request);
 
         $histories = LoginHistory::query()
             ->where('user_id', $request->user()->id)
@@ -192,7 +196,7 @@ class AuthController extends Controller
         ]);
     }
 
-    private function recordLoginHistory(Request $request, User $user, ?string $deviceId): void
+    private function recordLoginHistory(Request $request, User $user, ?string $deviceId, ?Carbon $loggedInAt = null): void
     {
         $userAgent = substr((string) $request->userAgent(), 0, 2000);
         $browser = $this->browserFromUserAgent($userAgent);
@@ -227,10 +231,37 @@ class AuthController extends Controller
                 'country' => $geo['country'] ?? null,
                 'country_code' => $geo['country_code'] ?? null,
                 'timezone' => data_get($geo, 'timezone.id'),
-                'logged_in_at' => now(),
+                'logged_in_at' => $loggedInAt ?? now(),
             ]);
         } catch (\Throwable $exception) {
             report($exception);
+        }
+    }
+
+    private function ensureCurrentSessionLoginHistory(Request $request): void
+    {
+        $user = $request->user();
+        $token = $user?->currentAccessToken();
+
+        if (!$token instanceof \Laravel\Sanctum\PersonalAccessToken || !$token->created_at) {
+            return;
+        }
+
+        $tokenName = (string) $token->name;
+        $deviceId = str_starts_with($tokenName, 'auth_device:')
+            ? substr($tokenName, strlen('auth_device:'))
+            : null;
+        $loginTime = $token->created_at;
+
+        $historyExists = LoginHistory::query()
+            ->where('user_id', $user->id)
+            ->where('device_id', $deviceId)
+            ->where('logged_in_at', '>=', $loginTime)
+            ->where('logged_in_at', '<=', $loginTime->copy()->addMinutes(2))
+            ->exists();
+
+        if (!$historyExists) {
+            $this->recordLoginHistory($request, $user, $deviceId, $loginTime);
         }
     }
 
@@ -271,6 +302,7 @@ class AuthController extends Controller
     // ✅ UPDATED — role + permissions return karta hai
     public function userProfile(Request $request)
     {
+        $this->ensureCurrentSessionLoginHistory($request);
         $user = $request->user()->load('role.permissions');
         return response()->json([
             'data' => $this->formatUser($user),

@@ -99,7 +99,7 @@ class UserRepository implements UserRepositoryInterface
     {
         $authUser = Auth::user();
 
-        $query = User::with(['role.permissions', 'createdBy'])
+        $query = User::with(['role.permissions', 'createdBy', 'lastLoginHistory'])
             ->withCount('createdUsers')
             ->visibleTo($authUser);
 

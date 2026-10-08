@@ -32,6 +32,10 @@ class UserResource extends JsonResource
                 'name' => $this->createdBy->name,
             ]),
             'created_at'     => $this->created_at?->format('Y-m-d H:i'),
+            'last_login_history' => $this->whenLoaded('lastLoginHistory', fn() => $this->lastLoginHistory ? [
+                'logged_in_at' => $this->lastLoginHistory->logged_in_at,
+                'device_name'  => $this->lastLoginHistory->device_name,
+            ] : null),
         ];
     }
 }
