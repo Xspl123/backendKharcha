@@ -14,6 +14,8 @@ class PurchaseOrder extends TenantModel
         'org_id',
         'vendor_id',
         'po_number',
+        'vendor_invoice_no',
+        'vendor_invoice_date',
         'product_id',
         'po_date',
         'expected_delivery_date',
@@ -50,6 +52,7 @@ class PurchaseOrder extends TenantModel
 
     protected $casts = [
         'po_date'                => 'date',
+        'vendor_invoice_date'    => 'date',
         'expected_delivery_date' => 'date',
         'received_date'          => 'date',
         'is_reverse_charge'      => 'boolean',

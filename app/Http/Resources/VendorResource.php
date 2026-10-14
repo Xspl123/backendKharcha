@@ -22,6 +22,7 @@ class VendorResource extends JsonResource
             'country'          => $this->country,
             'gstin'            => $this->gstin,
             'pan'              => $this->pan,
+            'opening_balance'  => $this->opening_balance,
             'bank_name'        => $this->bank_name,
             'bank_account_no'  => $this->bank_account_no,
             'bank_ifsc'        => $this->bank_ifsc,

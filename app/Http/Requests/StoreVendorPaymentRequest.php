@@ -12,6 +12,7 @@ class StoreVendorPaymentRequest extends FormRequest
     {
         return [
             'purchase_order_id' => 'required|exists:purchase_orders,id',
+            'account_id'        => 'nullable|integer',
             'amount'            => 'required|numeric|min:0.01',
             'payment_date'      => 'required|date',
             'payment_method'    => 'required|in:cash,bank_transfer,cheque,upi,other',

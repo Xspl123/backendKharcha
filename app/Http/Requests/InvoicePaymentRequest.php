@@ -189,6 +189,7 @@ class InvoicePaymentRequest extends FormRequest
     {
         $rules = [
             'invoice_id' => 'required|exists:invoices,id',
+            'account_id'     => 'nullable|exists:org_accounts,id',
             'amount' => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
             'payment_method' => 'required|in:cash,bank_transfer,upi,cheque,card',

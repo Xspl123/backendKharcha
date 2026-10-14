@@ -38,19 +38,61 @@ class InvoiceRepository implements InvoiceRepositoryInterface
     {
         return DB::transaction(function () use ($data) {
             $data = $this->scopeData($data);
+            
+            $isDraft = ($data['status'] ?? 'unpaid') === 'draft';
+
+            // Agar draft nahi hai toh sequence number generate karein
             $data['invoice_no'] = InvoiceNumberService::generate($data['org_id']);
 
             $items = $data['items'] ?? [];
             unset($data['items']);
 
             $invoice = Invoice::create($data);
-            foreach ($items as $item) $invoice->items()->create($item);
+
+            foreach ($items as $item) {
+                $invoice->items()->create($item);
+            }
+
+            // Calculations run karein
+            $invoice->load('items');
             $invoice->calculateTotals();
 
-            StockService::recordSaleOut($items, $data['user_id'], $invoice->id, $invoice->invoice_no);
+            // Stock sirf tab minus karein jab invoice Draft na ho
+            if (!$isDraft) {
+                StockService::recordSaleOut($items, $data['user_id'], $invoice->id, $invoice->invoice_no);
+            }
 
             $this->bumpScopedCache(['invoices', 'clients', 'gst', 'stock', 'stock_report']);
             return $invoice->load(['client', 'company', 'items', 'payments']);
+        });
+    }
+
+    /**
+     * Invoice Cancel karna (Professional way - Delete nahi, Cancel)
+     */
+    public function cancelInvoice(int $id, string $reason = '')
+    {
+        return DB::transaction(function () use ($id, $reason) {
+            $invoice = $this->show($id);
+
+            if ($invoice->status === 'cancelled') {
+                throw new \Exception('Invoice is already cancelled.');
+            }
+
+            if ($invoice->payments()->exists()) {
+                throw new \Exception('Cannot cancel invoice with recorded payments. Please delete or refund payments first.');
+            }
+
+            // Stock reverse karein
+            StockService::reverseSaleOut($invoice->id, $this->userId(), $invoice->invoice_no);
+
+            $invoice->update([
+                'status' => 'cancelled',
+                'notes'  => trim($invoice->notes . "\n[Cancelled on " . now()->format('d M Y') . ": {$reason}]"),
+            ]);
+
+            $this->bumpScopedCache(['invoices', 'clients', 'gst', 'stock', 'stock_report']);
+            return $invoice;
         });
     }
 

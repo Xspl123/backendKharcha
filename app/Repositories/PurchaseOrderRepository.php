@@ -154,7 +154,7 @@ class PurchaseOrderRepository implements PurchaseOrderRepositoryInterface
     {
         $po = $this->scopeQuery(PurchaseOrder::query())->findOrFail($id);
         abort_if($po->isReceived(), 422, 'Received PO delete nahi ho sakta.');
-        abort_if($po->payments()->count() > 0, 422, 'Is PO ke payments exist hain.');
+        abort_if($po->payments()->count() > 0 || (float) $po->paid_amount > 0, 422, 'Is PO par payment exist karti hai. Delete nahi ho sakta.');
         $this->bumpScopedCache(['purchase_orders', 'vendors', 'stock', 'stock_report']);
         return $po->delete();
     }

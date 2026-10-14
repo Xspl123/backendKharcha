@@ -47,4 +47,27 @@ class InvoicePayment extends TenantModel
             $payment->invoice->updatePaymentStatus();
         });
     }
+
+
+    public function isRefunded(): bool
+    {
+        return str_starts_with($this->notes ?? '', '[REFUNDED');
+    }
+
+    public function getRefundDetailsAttribute(): ?array
+    {
+        if (!$this->isRefunded()) return null;
+        if (preg_match('/\[REFUNDED:([^|\]]+)\|?([^\]]*)\]\s*(.*)/', $this->notes ?? '', $m)) {
+            return [
+                'refund_date'   => $m[1] ?: optional($this->payment_date)->format('Y-m-d'),
+                'refund_method' => $m[2] ?: $this->payment_method,
+                'reason'        => $m[3] ?: 'Payment refunded to client',
+            ];
+        }
+        return [
+            'refund_date'   => optional($this->payment_date)->format('Y-m-d'),
+            'refund_method' => $this->payment_method,
+            'reason'        => 'Payment refunded to client',
+        ];
+    }
 }

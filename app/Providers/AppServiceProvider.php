@@ -46,6 +46,8 @@ use App\Repositories\QuotationRepository;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use App\Repositories\Interfaces\VendorLedgerRepositoryInterface;
+use App\Repositories\VendorLedgerRepository;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -75,6 +77,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(PurchaseReturnRepositoryInterface::class, PurchaseReturnRepository::class);
         $this->app->bind(LeadRepositoryInterface::class, LeadRepository::class);
         $this->app->bind(QuotationRepositoryInterface::class, QuotationRepository::class);
+        $this->app->bind(VendorLedgerRepositoryInterface::class, VendorLedgerRepository::class);
 
     }
 

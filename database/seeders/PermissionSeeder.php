@@ -35,6 +35,7 @@ class PermissionSeeder extends Seeder
             'quotations' => ['view', 'create', 'edit', 'delete'],
             'campaigns' => ['view', 'create', 'edit', 'delete'],
             'exports' => ['view', 'create'],
+            'hsn_codes' => ['view', 'create', 'edit', 'delete'],
         ];
 
         $permissionIds = [];

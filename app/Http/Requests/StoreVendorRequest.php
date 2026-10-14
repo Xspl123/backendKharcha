@@ -22,6 +22,7 @@ class StoreVendorRequest extends FormRequest
             'country'          => 'nullable|string|max:100',
             'gstin'            => 'nullable|string|max:15',
             'pan'              => 'nullable|string|max:10',
+            'opening_balance'  => 'nullable|numeric|min:0',
             'bank_name'        => 'nullable|string|max:255',
             'bank_account_no'  => 'nullable|string|max:50',
             'bank_ifsc'        => 'nullable|string|max:20',

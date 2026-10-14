@@ -23,6 +23,7 @@ class Vendor extends TenantModel
         'country',
         'gstin',
         'pan',
+        'opening_balance',
         'bank_name',
         'bank_account_no',
         'bank_ifsc',
@@ -34,11 +35,20 @@ class Vendor extends TenantModel
     protected $attributes = [
         'country' => 'India',
         'status'  => 'active',
+        'opening_balance' => 0,
     ];
 
     protected $casts = [
         'status' => 'string',
+        'opening_balance' => 'decimal:2',
     ];
+
+
+    // Helpers
+    public function getTotalBalanceAttribute(): float
+    {
+        return round((float) ($this->opening_balance ?? 0) + $this->total_purchases - $this->total_paid, 2);
+    }
 
     // ── Relationships ──────────────────────────────────────
 
@@ -74,10 +84,5 @@ class Vendor extends TenantModel
     public function getTotalPaidAttribute(): float
     {
         return $this->payments()->sum('amount');
-    }
-
-    public function getTotalBalanceAttribute(): float
-    {
-        return $this->total_purchases - $this->total_paid;
     }
 }

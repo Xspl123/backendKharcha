@@ -63,5 +63,30 @@ class InvoicePaymentController extends Controller
         $payments = $this->paymentRepo->getByInvoice($invoiceId, $request->only(['per_page']));
         return InvoicePaymentResource::collection($payments);
     }
+
+        public function refund(\Illuminate\Http\Request $request, $id)
+        {
+            $validated = $request->validate([
+                'refund_date'   => 'nullable|date',
+                'refund_method' => 'nullable|string',
+                'notes'         => 'nullable|string',
+            ]);
+
+            $payment = $this->paymentRepo->show($id);
+
+            $rDate   = $validated['refund_date'] ?? now()->toDateString();
+            $rMethod = $validated['refund_method'] ?? $payment->payment_method;
+            $rNotes  = $validated['notes'] ?? 'Product returned refund';
+
+            $payment->notes = sprintf('[REFUNDED:%s|%s] %s', $rDate, $rMethod, $rNotes);
+            $payment->save();
+
+            \Illuminate\Support\Facades\Cache::flush();
+
+            return response()->json([
+                'message' => 'Payment refunded successfully',
+                'payment' => new InvoicePaymentResource($payment)
+            ]);
+        }
 }
 ?>

@@ -3,6 +3,8 @@
 namespace App\Repositories;
 
 use App\Models\VendorPayment;
+use App\Models\OrgAccount;
+use App\Models\OrgTransaction;
 use App\Models\PurchaseOrder;
 use App\Repositories\Interfaces\VendorPaymentRepositoryInterface;
 use App\Repositories\Traits\OrgScope;
@@ -43,6 +45,7 @@ class VendorPaymentRepository implements VendorPaymentRepositoryInterface
             $payment = VendorPayment::create($this->scopeData([
                 'vendor_id'         => $po->vendor_id,
                 'purchase_order_id' => $po->id,
+                'account_id'        => $data['account_id']     ?? null,
                 'amount'            => $data['amount'],
                 'payment_date'      => $data['payment_date'],
                 'payment_method'    => $data['payment_method'] ?? 'bank_transfer',
@@ -50,9 +53,30 @@ class VendorPaymentRepository implements VendorPaymentRepositoryInterface
                 'notes'             => $data['notes']          ?? null,
             ]));
 
+            // 👇 Auto-debit Org Account & Auto-record in Cashbook
+            if (!empty($data['account_id'])) {
+                $account = OrgAccount::find($data['account_id']);
+                if ($account) {
+                    $amount = (float) $data['amount'];
+                    $account->decrement('current_balance', $amount);
+                    OrgTransaction::create($this->scopeData([
+                        'account_id'        => $account->id,
+                        'transaction_date'  => $payment->payment_date,
+                        'type'              => 'debit',
+                        'category'          => 'vendor_payment',
+                        'amount'            => $amount,
+                        'balance_after'     => (float) $account->fresh()->current_balance,
+                        'payment_method'    => $payment->payment_method ?? 'bank_transfer',
+                        'reference_no'      => $payment->reference_no ?? null,
+                        'description'       => 'Vendor Payment: ' . ($po->vendor?->vendor_name ?? 'Vendor') . ' (PO: ' . $po->po_number . ')',
+                        'vendor_payment_id' => $payment->id,
+                    ]));
+                }
+            }
+
             $po->updatePaymentStatus();
 
-            $this->bumpScopedCache(['vendors', 'purchase_orders']);
+            $this->bumpScopedCache(['vendors', 'purchase_orders', 'org_accounts', 'org_transactions']);
             return $payment->load('purchaseOrder:id,po_number,total_amount,paid_amount,balance_amount');
         });
     }
@@ -62,9 +86,19 @@ class VendorPaymentRepository implements VendorPaymentRepositoryInterface
         return DB::transaction(function () use ($id) {
             $payment = $this->scopeQuery(VendorPayment::query())->findOrFail($id);
             $po = $payment->purchaseOrder;
+
+            // Agar payment delete ho to Org Account me paise wapas credit ho jayein
+            if ($payment->account_id) {
+                $account = OrgAccount::find($payment->account_id);
+                if ($account) {
+                    $account->increment('current_balance', (float) $payment->amount);
+                    OrgTransaction::where('vendor_payment_id', $payment->id)->delete();
+                }
+            }
+
             $payment->delete();
             $po->updatePaymentStatus();
-            $this->bumpScopedCache(['vendors', 'purchase_orders']);
+            $this->bumpScopedCache(['vendors', 'purchase_orders', 'org_accounts', 'org_transactions']);
             return true;
         });
     }

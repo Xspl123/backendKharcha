@@ -26,6 +26,7 @@ class Company extends TenantModel
         'bank_account_no',
         'bank_ifsc',
         'bank_branch',
+        'upi_id',
     ];
 
     protected $appends = ['logo_url'];

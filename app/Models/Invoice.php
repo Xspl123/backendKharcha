@@ -113,13 +113,70 @@ class Invoice extends TenantModel
 
     public function calculateTotals()
     {
-        $subTotal = $this->items()->sum('amount');
-        
-        $this->sub_total = $subTotal;
-        $this->total_amount = $subTotal + $this->cgst + $this->sgst + $this->igst;
-        $this->balance_amount = $this->total_amount - $this->paid_amount;
-        
-        $this->save();
+        $subTotal    = 0;
+        $totalTax    = 0;
+        $cgstTotal   = 0;
+        $sgstTotal   = 0;
+        $igstTotal   = 0;
+
+        $isInterState = ($this->supply_type === 'inter');
+
+        foreach ($this->items as $item) {
+            $gross        = round((float)$item->qty * (float)$item->rate, 2);
+            $discount     = round((float)($item->discount_amount ?? 0), 2);
+            $taxable      = max(0, $gross - $discount);
+            $taxRate      = (float)($item->tax_rate ?? 0);
+            $taxAmount    = round(($taxable * $taxRate) / 100, 2);
+
+            $item->updateQuietly([
+                'amount'         => $gross,
+                'taxable_amount' => $taxable,
+                'tax_amount'     => $taxAmount,
+            ]);
+
+            $subTotal += $taxable;
+
+            if ($isInterState) {
+                $igstTotal += $taxAmount;
+            } else {
+                // Intra-state me 50-50 split hota hai (CGST + SGST)
+                $halfTax = round($taxAmount / 2, 2);
+                $cgstTotal += $halfTax;
+                $sgstTotal += ($taxAmount - $halfTax); // 1 paisa rounding safety
+            }
+        }
+
+        // Invoice level discount
+        $invoiceDiscount = round((float)($this->discount_amount ?? 0), 2);
+        $taxableWithDiscount = max(0, $subTotal - $invoiceDiscount);
+
+        // Shipping charges
+        $shipping = round((float)($this->shipping_charges ?? 0), 2);
+
+        $rawTotal = $taxableWithDiscount + $cgstTotal + $sgstTotal + $igstTotal + $shipping;
+
+        // Professional Indian Round-off (Nearest Rupee: e.g. 1249.65 -> 1250.00, round_off = +0.35)
+        $roundedTotal = round($rawTotal);
+        $roundOff     = round($roundedTotal - $rawTotal, 2);
+
+        $this->sub_total      = $subTotal;
+        $this->cgst          = $cgstTotal;
+        $this->sgst          = $sgstTotal;
+        $this->igst          = $igstTotal;
+        $this->round_off      = $roundOff;
+        $this->total_amount   = $roundedTotal;
+        $this->balance_amount = max(0, $roundedTotal - (float)$this->paid_amount);
+
+        // Status auto-update
+        if ($this->balance_amount <= 0 && $this->total_amount > 0) {
+            $this->status = 'paid';
+        } elseif ($this->paid_amount > 0) {
+            $this->status = 'partial';
+        } elseif ($this->status !== 'draft' && $this->status !== 'cancelled') {
+            $this->status = 'unpaid';
+        }
+
+        $this->saveQuietly();
     }
 
     public function getTotalTaxAttribute(): float

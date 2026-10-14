@@ -20,6 +20,8 @@ class StorePurchaseOrderRequest extends FormRequest
             ],
             'po_date'                => 'required|date',
             'expected_delivery_date' => 'nullable|date|after_or_equal:po_date',
+            'vendor_invoice_no'      => 'nullable|string|max:100',
+            'vendor_invoice_date'    => 'nullable|date',
             'supply_type'            => 'required|in:intra,inter',
             'place_of_supply'        => 'nullable|string|max:100',
             'is_reverse_charge'      => 'nullable|boolean',

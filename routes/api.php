@@ -32,6 +32,9 @@ use App\Http\Controllers\Api\SuperAdminController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\QuotationController;
 use App\Http\Controllers\Api\PublicLeadController;
+use App\Http\Controllers\Api\VendorLedgerController;
+use App\Http\Controllers\Api\OrgTransactionController;
+use App\Http\Controllers\Api\OrgAccountController;
 
 // ── Public Routes ─────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
@@ -123,8 +126,33 @@ Route::middleware('auth:sanctum')->group(function () {
     // ══════════════════════════════════════════════════════
     Route::middleware(['org.access', 'tenant.org'])->group(function () {
 
+
+        // ── Org Accounts & Treasury ───────────────────────
+        Route::prefix('org-accounts')->group(function () {
+            Route::get('/summary', [OrgAccountController::class, 'summary']);
+            Route::get('/',        [OrgAccountController::class, 'index']);
+            Route::post('/',       [OrgAccountController::class, 'store']);
+            Route::get('/{id}',    [OrgAccountController::class, 'show']);
+            Route::put('/{id}',    [OrgAccountController::class, 'update']);
+            Route::delete('/{id}', [OrgAccountController::class, 'destroy']);
+        });
+
+        // ── Org Transactions (Cash & Bank Book) ───────────
+        Route::prefix('org-transactions')->group(function () {
+            Route::get('/cashflow', [OrgTransactionController::class, 'cashflow']);
+            Route::get('/',         [OrgTransactionController::class, 'index']);
+            Route::post('/',        [OrgTransactionController::class, 'store']);
+        });
+
+
         // ── HSN Codes ─────────────────────────────────────
-        Route::apiResource('hsn-codes', HsnCodeController::class);
+        Route::apiResource('hsn-codes', HsnCodeController::class)->middleware([
+                'index'   => 'permission:hsn_codes.view',
+                'show'    => 'permission:hsn_codes.view',
+                'store'   => 'permission:hsn_codes.create',
+                'update'  => 'permission:hsn_codes.edit',
+                'destroy' => 'permission:hsn_codes.delete',
+            ]);
 
         // ── Companies ─────────────────────────────────────
         Route::apiResource('companies', CompanyController::class)->middleware([
@@ -160,13 +188,18 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware('permission:invoices.view');
 
         // ── Invoice Payments ──────────────────────────────
-        Route::apiResource('invoice-payments', InvoicePaymentController::class)->middleware([
-            'index'   => 'permission:invoice_payments.view',
-            'show'    => 'permission:invoice_payments.view',
-            'store'   => 'permission:invoice_payments.create',
-            'update'  => 'permission:invoice_payments.edit',
-            'destroy' => 'permission:invoice_payments.delete',
-        ]);
+     
+            Route::post('invoice-payments/{id}/refund', [InvoicePaymentController::class, 'refund'])
+                ->middleware('permission:invoice_payments.edit'); 
+               
+            // 2. Standard apiResource
+            Route::apiResource('invoice-payments', InvoicePaymentController::class)->middleware([
+                'index'   => 'permission:invoice_payments.view',
+                'show'    => 'permission:invoice_payments.view',
+                'store'   => 'permission:invoice_payments.create',
+                'update'  => 'permission:invoice_payments.edit',
+                'destroy' => 'permission:invoice_payments.delete',
+            ]);
         Route::get('invoice-payments/invoice/{invoiceId}', [InvoicePaymentController::class, 'getByInvoice'])
             ->middleware('permission:invoice_payments.view');
 
@@ -188,10 +221,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/',        [VendorController::class, 'index'])->middleware('permission:vendors.view');
             Route::post('/',       [VendorController::class, 'store'])->middleware('permission:vendors.create');
             Route::get('/{id}',    [VendorController::class, 'show'])->middleware('permission:vendors.view');
+            Route::get('/{id}/ledger', [VendorLedgerController::class, 'show'])->middleware('permission:vendors.view');
             Route::put('/{id}',    [VendorController::class, 'update'])->middleware('permission:vendors.edit');
             Route::delete('/{id}', [VendorController::class, 'destroy'])->middleware('permission:vendors.delete');
         });
 
+       
         // ── Vendor Payments ───────────────────────────────
         Route::prefix('vendor-payments')->group(function () {
             Route::get('/',        [VendorPaymentController::class, 'index'])->middleware('permission:vendor_payments.view');
@@ -281,7 +316,6 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/custom-fields',     [LeadController::class, 'createCustomField']);
             Route::put('/custom-fields/{id}', [LeadController::class, 'updateCustomField']);
             Route::delete('/custom-fields/{id}', [LeadController::class, 'deleteCustomField']);
-
             Route::get('/workflow-rules',      [LeadController::class, 'getWorkflowRules']);
             Route::post('/workflow-rules',     [LeadController::class, 'createWorkflowRule']);
             Route::put('/workflow-rules/{id}', [LeadController::class, 'updateWorkflowRule']);
@@ -353,4 +387,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/users',                        [SuperAdminController::class, 'users']);
     });
 
+
+    
 });

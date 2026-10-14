@@ -12,6 +12,9 @@ class PurchaseOrderResource extends JsonResource
         return [
             'id'                     => $this->id,
             'po_number'              => $this->po_number,
+            'vendor_invoice_no'             => $this->vendor_invoice_no,
+            'vendor_invoice_date'           => $this->vendor_invoice_date?->format('Y-m-d'),
+            'vendor_invoice_date_formatted' => $this->vendor_invoice_date?->format('d M Y'),
             'po_date'                => $this->po_date?->format('Y-m-d'),
             'po_date_formatted'      => $this->po_date?->format('d M Y'),
             'expected_delivery_date' => $this->expected_delivery_date?->format('Y-m-d'),

@@ -35,6 +35,7 @@ class CompanyController extends Controller
             'bank_account_no' => 'nullable|string|max:50',
             'bank_ifsc' => 'nullable|string|max:20',
             'bank_branch' => 'nullable|string|max:255',
+            'upi_id' => 'nullable|string|max:100',
         ]);
 
         $validated['user_id'] = auth()->id();
@@ -82,6 +83,7 @@ class CompanyController extends Controller
             'bank_account_no' => 'nullable|string|max:50',
             'bank_ifsc' => 'nullable|string|max:20',
             'bank_branch' => 'nullable|string|max:255',
+            'upi_id' => 'nullable|string|max:100',
         ]);
 
         // Handle logo upload
