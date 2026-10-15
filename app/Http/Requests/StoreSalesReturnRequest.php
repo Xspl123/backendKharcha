@@ -29,6 +29,10 @@ class StoreSalesReturnRequest extends FormRequest
             'items.*.reason' => 'nullable|string',
             'return_date' => 'nullable|date',
             'notes' => 'nullable|string',
+            'is_refunded'             => 'nullable|boolean',
+            'account_id'              => 'nullable|integer',
+            'refund_amount'           => 'nullable|numeric|min:0',
+            'payment_method'          => 'nullable|string|max:50',
         ];
     }
 

@@ -11,6 +11,7 @@ class OrgTransactionResource extends JsonResource
     {
         return [
             'id'                      => $this->id,
+            'voucher_no'            => $this->voucher_no,
             'org_id'                  => $this->org_id,
             'account_id'              => $this->account_id,
             'account_name'            => $this->account?->name,

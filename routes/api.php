@@ -35,6 +35,8 @@ use App\Http\Controllers\Api\PublicLeadController;
 use App\Http\Controllers\Api\VendorLedgerController;
 use App\Http\Controllers\Api\OrgTransactionController;
 use App\Http\Controllers\Api\OrgAccountController;
+use App\Http\Controllers\Api\OrgCategoryController;
+use App\Http\Controllers\Api\ProfitLossController;
 
 // ── Public Routes ─────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
@@ -125,6 +127,16 @@ Route::middleware('auth:sanctum')->group(function () {
     // Sirf org_owner / org_member access kar sakte hain
     // ══════════════════════════════════════════════════════
     Route::middleware(['org.access', 'tenant.org'])->group(function () {
+
+        // ── Profit & Loss Report Engine ────────────────────
+        Route::get('/reports/profit-loss', [ProfitLossController::class, 'index']);
+
+        // ── Org Categories (Dynamic Master) ───────────────
+        Route::prefix('org-categories')->group(function () {
+            Route::get('/',        [OrgCategoryController::class, 'index']);
+            Route::post('/',       [OrgCategoryController::class, 'store']);
+            Route::delete('/{id}', [OrgCategoryController::class, 'destroy']);
+        });
 
 
         // ── Org Accounts & Treasury ───────────────────────

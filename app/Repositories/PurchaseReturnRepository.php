@@ -4,6 +4,8 @@ namespace App\Repositories;
 
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\OrgAccount;
+use App\Models\OrgTransaction;
 use App\Repositories\Interfaces\PurchaseReturnRepositoryInterface;
 use App\Repositories\Traits\OrgScope;
 use App\Repositories\Traits\ScopedCache;
@@ -21,34 +23,33 @@ class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
             $scopedData = $this->scopeData([]);
 
             $originalPO = $this->scopeQuery(PurchaseOrder::query())
-                ->with('items.product')->findOrFail($data['original_po_id']);
+                ->with(['items.product', 'vendor'])->findOrFail($data['original_po_id']);
 
-            // ✅ Original PO received hona chahiye
             if ($originalPO->status !== 'received') {
                 throw new \Exception('Only received POs can be returned.');
             }
 
-            $returnPO                      = new PurchaseOrder();
-            $returnPO->user_id             = $scopedData['user_id'];
-            $returnPO->org_id              = $scopedData['org_id'] ?? null;
-            $returnPO->vendor_id           = $originalPO->vendor_id;
-            $returnPO->po_number           = 'PR-' . $originalPO->po_number . '-' . time();
-            $returnPO->po_date             = $data['return_date'] ?? now()->toDateString();
+            $returnPO                         = new PurchaseOrder();
+            $returnPO->user_id                = $scopedData['user_id'];
+            $returnPO->org_id                 = $scopedData['org_id'] ?? null;
+            $returnPO->vendor_id              = $originalPO->vendor_id;
+            $returnPO->po_number              = 'PR-' . $originalPO->po_number . '-' . time();
+            $returnPO->po_date                = $data['return_date'] ?? now()->toDateString();
             $returnPO->expected_delivery_date = now()->toDateString();
-            $returnPO->supply_type         = $originalPO->supply_type    ?? 'intra';
-            $returnPO->place_of_supply     = $originalPO->place_of_supply ?? null;
-            $returnPO->is_reverse_charge   = $originalPO->is_reverse_charge ?? 0;
-            $returnPO->sub_total           = 0;
-            $returnPO->cgst                = 0;
-            $returnPO->sgst                = 0;
-            $returnPO->igst                = 0;
-            $returnPO->total_amount        = 0;
-            $returnPO->paid_amount         = 0;
-            $returnPO->balance_amount      = 0;
-            $returnPO->status              = 'return';
-            $returnPO->is_return           = 1;
-            $returnPO->original_po_id      = $originalPO->id;
-            $returnPO->notes               = $data['notes'] ?? "Return of PO #{$originalPO->po_number}";
+            $returnPO->supply_type            = $originalPO->supply_type    ?? 'intra';
+            $returnPO->place_of_supply        = $originalPO->place_of_supply ?? null;
+            $returnPO->is_reverse_charge      = $originalPO->is_reverse_charge ?? 0;
+            $returnPO->sub_total              = 0;
+            $returnPO->cgst                   = 0;
+            $returnPO->sgst                   = 0;
+            $returnPO->igst                   = 0;
+            $returnPO->total_amount           = 0;
+            $returnPO->paid_amount            = 0;
+            $returnPO->balance_amount         = 0;
+            $returnPO->status                 = 'return';
+            $returnPO->is_return              = 1;
+            $returnPO->original_po_id         = $originalPO->id;
+            $returnPO->notes                  = $data['notes'] ?? "Return of PO #{$originalPO->po_number}";
             $returnPO->save();
 
             $totalAmount = 0;
@@ -66,9 +67,8 @@ class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
                 }
 
                 $originalItem = $originalItemQuery->first();
-
                 if (!$originalItem) {
-                    throw new \Exception('Selected item not found in the original purchase order.');
+                    throw new \Exception('Selected item not found in original PO.');
                 }
 
                 $maxReturnable = (float) $originalItem->qty - (float) ($originalItem->returned_qty ?? 0);
@@ -76,11 +76,11 @@ class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
                     throw new \Exception("Cannot return {$item['qty']} units. Max returnable: {$maxReturnable}");
                 }
 
-                $qty       = (float) $item['qty'];
-                $rate      = (float) $item['rate'];
-                $taxRate   = (float) ($originalItem->tax_rate ?? 0);
-                $amount    = round($qty * $rate, 2);
-                $taxAmount = round($amount * $taxRate / 100, 2);
+                $qty            = (float) $item['qty'];
+                $rate           = (float) $item['rate'];
+                $taxRate        = (float) ($originalItem->tax_rate ?? 0);
+                $amount         = round($qty * $rate, 2);
+                $taxAmount      = round(($amount * $taxRate) / 100, 2);
                 $newReturnedQty = round((float) ($originalItem->returned_qty ?? 0) + $qty, 2);
                 $isFullyReturned = $newReturnedQty >= round((float) $originalItem->qty, 2);
 
@@ -88,23 +88,23 @@ class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
                 $totalTax    += $taxAmount;
 
                 $returnPO->items()->create([
-                    'user_id'     => $scopedData['user_id'],
-                    'org_id'      => $scopedData['org_id'] ?? null,
-                    'product_id'  => $originalItem->product_id,
-                    'category_id' => $originalItem->category_id,
-                    'item_name'   => $originalItem->item_name,
-                    'description' => $item['reason'] ?? $originalItem->description ?? '',
-                    'hsn_code'    => $originalItem->hsn_code ?? '',
-                    'qty'         => $qty,
-                    'unit'        => $originalItem->unit ?? 'pcs',
-                    'rate'        => $rate,
-                    'amount'      => $amount,
-                    'tax_rate'    => $taxRate,
-                    'tax_amount'  => $taxAmount,
-                    'returned_qty'=> 0,
-                    'is_returned' => false,
+                    'user_id'          => $scopedData['user_id'],
+                    'org_id'           => $scopedData['org_id'] ?? null,
+                    'product_id'       => $originalItem->product_id,
+                    'category_id'      => $originalItem->category_id,
+                    'item_name'        => $originalItem->item_name,
+                    'description'      => $item['reason'] ?? $originalItem->description ?? '',
+                    'hsn_code'         => $originalItem->hsn_code ?? '',
+                    'qty'              => $qty,
+                    'unit'             => $originalItem->unit ?? 'pcs',
+                    'rate'             => $rate,
+                    'amount'           => $amount,
+                    'tax_rate'         => $taxRate,
+                    'tax_amount'       => $taxAmount,
+                    'returned_qty'     => 0,
+                    'is_returned'      => false,
                     'original_item_id' => $originalItem->id,
-                    'is_return_item' => true,
+                    'is_return_item'   => true,
                 ]);
 
                 DB::table('purchase_order_items')->where('id', $originalItem->id)->update([
@@ -119,8 +119,7 @@ class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
                     'qty'            => $qty,
                     'rate'           => $rate,
                     'org_id'         => $scopedData['org_id'] ?? null,
-                    'notes'          => "Purchase Return — PO #{$originalPO->po_number}" .
-                                        (isset($item['reason']) ? " — {$item['reason']}" : ''),
+                    'notes'          => "Purchase Return — PO #{$originalPO->po_number}" . (isset($item['reason']) ? " — {$item['reason']}" : ''),
                     'movement_date'  => $data['return_date'] ?? now()->toDateString(),
                     'reference_type' => 'po_return',
                     'reference_id'   => $returnPO->id,
@@ -128,20 +127,47 @@ class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
                 ]);
             }
 
-            $isInter = ($originalPO->supply_type === 'inter');
+            $isInter     = ($originalPO->supply_type === 'inter');
+            $returnTotal = round($totalAmount + $totalTax, 2);
+
+            // ── Treasury Auto-Sync: Vendor Refund Received ───────
+            $isRefunded = !empty($data['is_refunded']);
+            $accountId  = $data['account_id'] ?? null;
+            $refundAmt  = ($isRefunded && $accountId) ? (!empty($data['refund_amount']) ? (float) $data['refund_amount'] : $returnTotal) : 0;
+
+            if ($isRefunded && $accountId && $refundAmt > 0) {
+                $account = OrgAccount::find($accountId);
+                if ($account) {
+                    $account->increment('current_balance', $refundAmt);
+
+                    OrgTransaction::create($this->scopeData([
+                        'account_id'       => $account->id,
+                        'transaction_date' => $data['return_date'] ?? now()->toDateString(),
+                        'type'             => 'credit',
+                        'category'         => 'purchase_return',
+                        'amount'           => $refundAmt,
+                        'balance_after'    => (float) $account->fresh()->current_balance,
+                        'payment_method'   => $data['payment_method'] ?? 'bank_transfer',
+                        'reference_no'     => $returnPO->po_number,
+                        'description'      => 'Purchase Return Refund: ' . ($originalPO->vendor?->vendor_name ?? 'Vendor') . ' (PO: ' . ($originalPO->po_number ?? 'PO') . ')',
+                    ]));
+                }
+            }
+
             DB::table('purchase_orders')->where('id', $returnPO->id)->update([
-                'sub_total'    => round($totalAmount, 2),
-                'cgst'         => $isInter ? 0 : round($totalTax / 2, 2),
-                'sgst'         => $isInter ? 0 : round($totalTax / 2, 2),
-                'igst'         => $isInter ? round($totalTax, 2) : 0,
-                'total_amount' => round($totalAmount + $totalTax, 2),
-                'updated_at'   => now(),
+                'sub_total'      => round($totalAmount, 2),
+                'cgst'           => $isInter ? 0 : round($totalTax / 2, 2),
+                'sgst'           => $isInter ? 0 : round($totalTax / 2, 2),
+                'igst'           => $isInter ? round($totalTax, 2) : 0,
+                'total_amount'   => $returnTotal,
+                'paid_amount'    => $refundAmt,
+                'balance_amount' => max(0, round($returnTotal - $refundAmt, 2)),
+                'updated_at'     => now(),
             ]);
 
             $originalPO->refresh();
             $originalPO->recalculateAmountsFromRemainingItems();
 
-            // Original PO ko sirf tab return mark karo jab sari quantities fully return ho chuki hon.
             $allReturned = DB::table('purchase_order_items')
                 ->where('purchase_order_id', $originalPO->id)
                 ->where('is_return_item', false)
@@ -149,13 +175,11 @@ class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
                 ->doesntExist();
 
             if ($allReturned) {
-                // Sab items return ho gaye → original PO = return
                 DB::table('purchase_orders')->where('id', $originalPO->id)
                     ->update(['status' => 'return', 'updated_at' => now()]);
             }
-            // Partial return hone pe original PO status 'received' hi rahega
 
-            $this->bumpScopedCache(['purchase_orders', 'vendors', 'stock', 'stock_report']);
+            $this->bumpScopedCache(['purchase_orders', 'vendors', 'stock', 'stock_report', 'org_accounts', 'org_transactions']);
             return $returnPO->fresh(['items.product', 'vendor', 'originalPO']);
         });
     }
@@ -193,7 +217,7 @@ class PurchaseReturnRepository implements PurchaseReturnRepositoryInterface
         $return = $this->scopeQuery(PurchaseOrder::query())
             ->where('is_return', true)->findOrFail($id);
         $return->update(['status' => $status]);
-        $this->bumpScopedCache(['purchase_orders', 'vendors']);
+        $this->bumpScopedCache(['purchase_orders', 'vendors', 'org_accounts', 'org_transactions']);
         return $return;
     }
 }
