@@ -128,20 +128,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
         // ── Org Accounts & Treasury ───────────────────────
-        Route::prefix('org-accounts')->group(function () {
+        Route::prefix('org-accounts')->middleware('permission:org_accounts.view')->group(function () {
             Route::get('/summary', [OrgAccountController::class, 'summary']);
             Route::get('/',        [OrgAccountController::class, 'index']);
-            Route::post('/',       [OrgAccountController::class, 'store']);
+            Route::post('/',       [OrgAccountController::class, 'store'])->middleware('permission:org_accounts.manage');
             Route::get('/{id}',    [OrgAccountController::class, 'show']);
-            Route::put('/{id}',    [OrgAccountController::class, 'update']);
-            Route::delete('/{id}', [OrgAccountController::class, 'destroy']);
+            Route::put('/{id}',    [OrgAccountController::class, 'update'])->middleware('permission:org_accounts.manage');
+            Route::delete('/{id}', [OrgAccountController::class, 'destroy'])->middleware('permission:org_accounts.manage');
         });
 
         // ── Org Transactions (Cash & Bank Book) ───────────
-        Route::prefix('org-transactions')->group(function () {
+        Route::prefix('org-transactions')->middleware('permission:org_accounts.view')->group(function () {
             Route::get('/cashflow', [OrgTransactionController::class, 'cashflow']);
             Route::get('/',         [OrgTransactionController::class, 'index']);
-            Route::post('/',        [OrgTransactionController::class, 'store']);
+            Route::post('/',        [OrgTransactionController::class, 'store'])->middleware('permission:org_accounts.manage');
         });
 
 
