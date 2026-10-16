@@ -1,5 +1,4 @@
 <?php
-
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BudgetController;
@@ -37,6 +36,8 @@ use App\Http\Controllers\Api\OrgTransactionController;
 use App\Http\Controllers\Api\OrgAccountController;
 use App\Http\Controllers\Api\OrgCategoryController;
 use App\Http\Controllers\Api\ProfitLossController;
+use App\Http\Controllers\Api\BalanceSheetController;
+use App\Http\Controllers\Api\EInvoiceController;
 
 // ── Public Routes ─────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
@@ -127,6 +128,22 @@ Route::middleware('auth:sanctum')->group(function () {
     // Sirf org_owner / org_member access kar sakte hain
     // ══════════════════════════════════════════════════════
     Route::middleware(['org.access', 'tenant.org'])->group(function () {
+
+    // ── E-Way Bill & E-Invoice Engine ───────────────────
+        Route::get('invoices/{id}/eway-bill/json', [EInvoiceController::class, 'downloadEWayBillJson'])
+            ->middleware('permission:invoices.view');
+        Route::post('invoices/{id}/eway-bill', [EInvoiceController::class, 'saveEWayBill'])
+            ->middleware('permission:invoices.edit');
+        Route::get('invoices/{id}/einvoice/json', [EInvoiceController::class, 'downloadEInvoiceJson'])
+            ->middleware('permission:invoices.view');
+        Route::post('invoices/{id}/einvoice/generate-irn', [EInvoiceController::class, 'generateIrn'])
+            ->middleware('permission:invoices.edit');
+        Route::post('invoices/{id}/einvoice/cancel-irn', [EInvoiceController::class, 'cancelIrn'])
+            ->middleware('permission:invoices.edit');
+
+    // ── Balance Sheet & Trial Balance Engine ───────────
+        Route::get('/reports/balance-sheet', [BalanceSheetController::class, 'balanceSheet']);
+        Route::get('/reports/trial-balance', [BalanceSheetController::class, 'trialBalance']);
 
         // ── Profit & Loss Report Engine ────────────────────
         Route::get('/reports/profit-loss', [ProfitLossController::class, 'index']);

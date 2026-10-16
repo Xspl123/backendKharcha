@@ -30,9 +30,14 @@ class InvoiceResource extends JsonResource
         'supply_type' => $this->supply_type,
         'place_of_supply' => $this->place_of_supply,
         'is_reverse_charge' => $this->is_reverse_charge,
+
+        'irn'               => $this->irn,
+        'ack_no'            => $this->ack_no,
+        'ack_date'          => $this->ack_date,
+        'signed_qrcode'     => $this->signed_qrcode,
         
         'client' => new ClientResource($this->whenLoaded('client')),
-        'company' => $this->whenLoaded('company'), // ADD THIS LINE
+        'company' => $this->whenLoaded('company'), 
         'items' => InvoiceItemResource::collection($this->whenLoaded('items')),
         'payments' => InvoicePaymentResource::collection($this->whenLoaded('payments')),
         
